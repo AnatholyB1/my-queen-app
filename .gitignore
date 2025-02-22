@@ -13,7 +13,7 @@
 # testing
 /coverage
 
-adminsdk.json
+adminSdk.json
 
 # next.js
 /.next/
