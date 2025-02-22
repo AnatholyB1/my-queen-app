@@ -12,6 +12,10 @@ if (!fireBaseId) {
   throw new Error("Missing FIREBASE_ID environment variable");
 }
 
+// Add logging to verify environment variables
+console.log("FIREBASE_SERVICE_ACCOUNT:", serviceAccountBase);
+console.log("FIREBASE_ID:", fireBaseId);
+
 const serviceAccount = {
   type: "service_account",
   project_id: "queen-app-417ef",
