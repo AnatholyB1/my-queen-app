@@ -1,3 +1,6 @@
 {
-    "reactSnippets.settings.prettierEnabled": true
+    "reactSnippets.settings.prettierEnabled": true,
+    "github.copilot.advanced": {
+        
+    }
 }

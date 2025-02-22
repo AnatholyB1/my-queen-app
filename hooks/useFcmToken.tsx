@@ -1,10 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { onMessage, Unsubscribe } from "firebase/messaging";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  createContext,
+} from "react";
+import { onMessage } from "firebase/messaging";
 import { fetchToken, messaging } from "@/app/firebase";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  subscribeToTopic,
+  unsubscribeFromTopic,
+} from "@/backEnd/firebaseNotification";
+import { useSession } from "next-auth/react";
+
+type FcmContextType = {
+  notificationPermissionStatus: NotificationPermission | null;
+  token: string | null;
+};
+
+const FcmContext = createContext({} as FcmContextType);
+
+export const useFcmToken = () => {
+  const context = useContext(FcmContext);
+  if (!context) {
+    throw new Error("useFcmToken must be used within a FcmTokenProvider");
+  }
+  return context;
+};
 
 async function getNotificationPermissionAndToken() {
   // Step 1: Check if Notifications are supported in the browser.
@@ -30,7 +57,14 @@ async function getNotificationPermissionAndToken() {
   return null;
 }
 
-const useFcmToken = () => {
+export const FcmTokenProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
+  const { data: session } = useSession();
+  const email = session?.user?.email;
+
   const router = useRouter(); // Initialize the router for navigation.
   const [notificationPermissionStatus, setNotificationPermissionStatus] =
     useState<NotificationPermission | null>(null); // State to store the notification permission status.
@@ -79,6 +113,11 @@ const useFcmToken = () => {
     // Step 7: Set the fetched token and mark as fetched.
     setNotificationPermissionStatus(Notification.permission);
     setToken(token);
+
+    const subscription = await subscribeToTopic(token); // Subscribe to the topic to receive messages.
+    if (!subscription.success) return;
+
+    console.log(`Subscribed to topic with token ${token}`);
     isLoading.current = false;
   }, []);
 
@@ -89,81 +128,80 @@ const useFcmToken = () => {
     }
   }, [loadToken]);
 
-  useEffect(() => {
-    const setupListener = async () => {
-      if (!token) return; // Exit if no token is available.
+  const messageListener = useCallback(async () => {
+    const m = await messaging();
+    if (!m) return;
 
-      console.log(`onMessage registered with token ${token}`);
-      const m = await messaging();
-      if (!m) return;
+    if (!token) return;
 
-      // Step 9: Register a listener for incoming FCM messages.
-      const unsubscribe = onMessage(m, (payload) => {
-        if (Notification.permission !== "granted") return;
+    // Step 9: Register a listener for incoming FCM messages.
+    onMessage(m, async (payload) => {
+      if (Notification.permission !== "granted") return;
+      //if i'm the one sending the message i don't want to see the notification
+      if (!email) return;
+      if (payload.data?.user === email) return;
 
-        console.log("Foreground push notification received:", payload);
-        const link = payload.fcmOptions?.link || payload.data?.link;
+      const link = payload.fcmOptions?.link || payload.data?.link;
 
-        if (link) {
-          toast.info(
-            `${payload.notification?.title}: ${payload.notification?.body}`,
-            {
-              action: {
-                label: "Visit",
-                onClick: () => {
-                  const link = payload.fcmOptions?.link || payload.data?.link;
-                  if (link) {
-                    router.push(link);
-                  }
-                },
-              },
-            }
-          );
-        } else {
-          toast.info(
-            `${payload.notification?.title}: ${payload.notification?.body}`
-          );
-        }
-
-        // --------------------------------------------
-        // Disable this if you only want toast notifications.
-        const n = new Notification(
-          payload.notification?.title || "New message",
+      if (link) {
+        toast.info(
+          `${payload.notification?.title}: ${payload.notification?.body}`,
           {
-            body: payload.notification?.body || "This is a new message",
-            data: link ? { url: link } : undefined,
+            action: {
+              label: "Visit",
+              onClick: () => {
+                const link = payload.fcmOptions?.link || payload.data?.link;
+                if (link) {
+                  router.push(link);
+                }
+              },
+            },
           }
         );
+      } else {
+        toast.info(
+          `${payload.notification?.title}: ${payload.notification?.body}`
+        );
+      }
 
-        // Step 10: Handle notification click event to navigate to a link if present.
-        n.onclick = (event) => {
-          event.preventDefault();
-          const link = (event.target as Notification)?.data?.url;
-          if (link) {
-            router.push(link);
-          } else {
-            console.log("No link found in the notification payload");
-          }
-        };
-        // --------------------------------------------
+      // --------------------------------------------
+      // Disable this if you only want toast notifications.
+      const n = new Notification(payload.notification?.title || "New message", {
+        body: payload.notification?.body || "This is a new message",
+        data: link ? { url: link } : undefined,
       });
 
-      return unsubscribe;
-    };
-
-    let unsubscribe: Unsubscribe | null = null;
-
-    setupListener().then((unsub) => {
-      if (unsub) {
-        unsubscribe = unsub;
-      }
+      // Step 10: Handle notification click event to navigate to a link if present.
+      n.onclick = (event) => {
+        event.preventDefault();
+        const link = (event.target as Notification)?.data?.url;
+        if (link) {
+          router.push(link);
+        } else {
+          console.log("No link found in the notification payload");
+        }
+      };
+      // --------------------------------------------
     });
+  }, [router, token, email]);
 
-    // Step 11: Cleanup the listener when the component unmounts.
-    return () => unsubscribe?.();
-  }, [token, router]);
+  useEffect(() => {
+    // Step 10: Initialize the message listener when the component mounts.
+    messageListener();
+    return () => {
+      // Step 11: Unsubscribe from the FCM message listener when the component unmounts.
+      if (token) {
+        unsubscribeFromTopic(token);
+      }
+    };
+  }, [token, router, messageListener]);
 
-  return { token, notificationPermissionStatus }; // Return the token and permission status.
+  const contextValue: FcmContextType = {
+    notificationPermissionStatus,
+    token,
+  };
+
+  return (
+    <FcmContext.Provider value={contextValue}>{children}</FcmContext.Provider>
+  );
 };
-
-export default useFcmToken;

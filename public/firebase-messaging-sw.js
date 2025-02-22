@@ -1,7 +1,5 @@
-importScripts("https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js");
-importScripts(
-  "https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"
-);
+importScripts("https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.6.1/firebase-messaging-compat.js");
 
 // Replace these with your own Firebase config keys...
 const firebaseConfig = {
@@ -31,7 +29,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: "./logo.png",
+    icon: "./icon-144x144.ico",
     data: { url: link },
   };
   self.registration.showNotification(notificationTitle, notificationOptions);
@@ -45,7 +43,6 @@ self.addEventListener("notificationclick", function (event) {
   // This checks if the client is already open and if it is, it focuses on the tab. If it is not open, it opens a new tab with the URL passed in the notification payload
   event.waitUntil(
     clients
-      // https://developer.mozilla.org/en-US/docs/Web/API/Clients/matchAll
       .matchAll({ type: "window", includeUncontrolled: true })
       .then(function (clientList) {
         const url = event.notification.data.url;
@@ -54,7 +51,7 @@ self.addEventListener("notificationclick", function (event) {
 
         // If relative URL is passed in firebase console or API route handler, it may open a new window as the client.url is the full URL i.e. https://example.com/ and the url is /about whereas if we passed in the full URL, it will focus on the existing tab i.e. https://example.com/about
         for (const client of clientList) {
-          if (client.url === url && "focus" in client) {
+          if (client.url.includes(url) && "focus" in client) {
             return client.focus();
           }
         }

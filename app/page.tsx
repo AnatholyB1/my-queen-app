@@ -2,20 +2,25 @@
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { SendNotification } from "@/backEnd/firebaseNotification";
-import useFcmToken from "@/hooks/useFcmToken";
+import { useSession } from "next-auth/react";
 
 export default function Home() {
-  const { token } = useFcmToken();
+  const { data: session } = useSession();
+  const email = session?.user?.email;
 
+  const { mutate: server_SendNotification } = useMutation({
+    mutationFn: SendNotification,
+  });
+
+  if (!email) {
+    return <div>loading...</div>;
+  }
   const body = {
-    token: token || "",
+    user: email,
     title: "New message",
     message: "This is a new message",
     link: "/",
   };
-  const { mutate: server_SendNotification } = useMutation({
-    mutationFn: SendNotification,
-  });
 
   return (
     <div className="flex justify-center items-center h-screen">

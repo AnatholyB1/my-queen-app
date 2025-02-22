@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Footer } from "@/components/ui/footer";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/app/providers/ReactQueryProviders";
+import { FcmTokenProvider } from "@/hooks/useFcmToken";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,17 +48,19 @@ export default function RootLayout({
         <SessionProviderWrapper>
           <ProtectedRoute>
             <ReactQueryProvider>
-              <Header
-                className="bg-primary text-primary-foreground"
-                size="lg"
-                icon={icon}
-              />
-              {children}
-              <Footer
-                className="bg-primary text-primary-foreground"
-                size="lg"
-              />
-              <Toaster />
+              <FcmTokenProvider>
+                <Header
+                  className="bg-primary text-primary-foreground"
+                  size="lg"
+                  icon={icon}
+                />
+                {children}
+                <Footer
+                  className="bg-primary text-primary-foreground"
+                  size="lg"
+                />
+                <Toaster />
+              </FcmTokenProvider>
             </ReactQueryProvider>
           </ProtectedRoute>
         </SessionProviderWrapper>

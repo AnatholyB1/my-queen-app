@@ -42,18 +42,20 @@ try {
 }
 
 export const SendNotification = async ({
-  token,
+  user,
   title,
   message,
   link,
 }: {
-  token: string;
+  user: string;
   title: string;
   message: string;
   link: string;
 }) => {
   const payload: Message = {
-    token,
+    data: {
+      user,
+    },
     notification: {
       title,
       body: message,
@@ -62,12 +64,38 @@ export const SendNotification = async ({
       fcmOptions: {
         link,
       },
+      notification: {
+        body: message,
+        requireInteraction: true,
+        badge: "/public/icon-96x96.ico",
+      },
     },
+    topic: "app",
   };
   try {
     await admin.messaging().send(payload);
 
     return { success: true, message: "Notification sent!" };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+};
+
+export const subscribeToTopic = async (token: string) => {
+  try {
+    await admin.messaging().subscribeToTopic(token, "app");
+
+    return { success: true, message: "Subscribed to topic!" };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+};
+
+export const unsubscribeFromTopic = async (token: string) => {
+  try {
+    await admin.messaging().unsubscribeFromTopic(token, "app");
+
+    return { success: true, message: "Unsubscribed from topic!" };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
