@@ -67,7 +67,7 @@ export const SendNotification = async ({
       notification: {
         body: message,
         requireInteraction: true,
-        badge: "/public/icon-96x96.ico",
+        badge: "https://my-queen-app.vercel.app/icon-48x48.ico",
       },
     },
     topic: "app",

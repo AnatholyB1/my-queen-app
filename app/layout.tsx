@@ -23,6 +23,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "My Queen App",
   description: "Our app for our story",
+  applicationName: "My Queen App",
+  icons:"/favicon.ico" ,
 };
 
 const icon = (

@@ -17,8 +17,8 @@ export default function Home() {
   }
   const body = {
     user: email,
-    title: "New message",
-    message: "This is a new message",
+    title: "Don't ignore me",
+    message: "Donne moi de l'attention tirak ♥️",
     link: "/",
   };
 
