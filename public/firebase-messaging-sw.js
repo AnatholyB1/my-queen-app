@@ -26,9 +26,9 @@ messaging.onBackgroundMessage((payload) => {
   // payload.data.link comes from the Firebase Console where link is the 'key'
   const link = payload.fcmOptions?.link || payload.data?.link;
 
-  const notificationTitle = payload.notification.title;
+  const notificationTitle = payload.notification.title + 'sw';    
   const notificationOptions = {
-    body: payload.notification.body,
+    body: payload.notification.body + "sw",
     icon: "./icon-144x144.ico",
     data: { url: link },
   };
