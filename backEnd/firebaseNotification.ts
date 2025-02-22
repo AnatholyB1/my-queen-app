@@ -11,9 +11,13 @@ const fireBaseId = process.env.FIREBASE_ID;
 if (!fireBaseId) {
   throw new Error("Missing FIREBASE_ID environment variable");
 }
+console.log("serviceAccountBase", serviceAccountBase);
 
 // Ensure the private key is correctly formatted
 const formattedPrivateKey = serviceAccountBase.replace(/\\n/g, "\n");
+
+console.log("fireBaseId", fireBaseId);
+console.log("formattedPrivateKey", formattedPrivateKey);
 
 const serviceAccount = {
   type: "service_account",
