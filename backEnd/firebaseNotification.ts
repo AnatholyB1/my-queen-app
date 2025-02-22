@@ -12,15 +12,14 @@ if (!fireBaseId) {
   throw new Error("Missing FIREBASE_ID environment variable");
 }
 
-// Add logging to verify environment variables
-console.log("FIREBASE_SERVICE_ACCOUNT:", serviceAccountBase);
-console.log("FIREBASE_ID:", fireBaseId);
+// Ensure the private key is correctly formatted
+const formattedPrivateKey = serviceAccountBase.replace(/\\n/g, "\n");
 
 const serviceAccount = {
   type: "service_account",
   project_id: "queen-app-417ef",
   private_key_id: fireBaseId,
-  private_key: serviceAccountBase,
+  private_key: formattedPrivateKey,
   client_email:
     "firebase-adminsdk-fbsvc@queen-app-417ef.iam.gserviceaccount.com",
   client_id: "118160915009649317984",
