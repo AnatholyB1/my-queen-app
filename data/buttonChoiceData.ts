@@ -8,6 +8,24 @@ export const buttonChoiceData: ButtonData[] = [
     link: "/",
   },
   {
+    text: "I love you",
+    title: "I love you !",
+    message: "Je t'aime, je t'aime, je t'aime 💖",
+    link: "/",
+  },
+  {
+    text: "I miss you",
+    title: "I miss you",
+    message: "Tu me manques, reviens vite 🥺",
+    link: "/",
+  },
+  {
+    text: "I want to see you",
+    title: "I want to see you",
+    message: "Je veux te voir, viens me voir 🥺",
+    link: "/",
+  },
+  {
     text: "I'm hungry",
     title: "Feed me",
     message: "J'ai faim donne moi à manger 🍔",
