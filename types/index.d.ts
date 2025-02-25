@@ -28,3 +28,10 @@ export type SwipeButtonProps = {
   removeCard: (id: number, action: "right" | "left") => void;
   id: number;
 };
+
+export type ButtonData = {
+  text: string;
+  title: string;
+  message: string;
+  link: string;
+};

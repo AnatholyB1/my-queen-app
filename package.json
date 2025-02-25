@@ -20,6 +20,7 @@
     "clsx": "^2.1.1",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.39.3",
+    "embla-carousel-react": "^8.5.2",
     "firebase": "^11.3.1",
     "firebase-admin": "^13.1.0",
     "lucide-react": "^0.471.2",
