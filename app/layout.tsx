@@ -7,7 +7,7 @@ import { Header } from "@/components/ui/header";
 import Image from "next/image";
 import { Footer } from "@/components/ui/footer";
 import { Toaster } from "@/components/ui/sonner";
-import ReactQueryProvider from "@/app/providers/ReactQueryProviders";
+import QueryClientContextProvider from "@/app/providers/ReactQueryProviders";
 import { FcmTokenProvider } from "@/hooks/useFcmToken";
 
 const geistSans = Geist({
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   title: "My Queen App",
   description: "Our app for our story",
   applicationName: "My Queen App",
-  icons:"/favicon.ico" ,
+  icons: "/favicon.ico",
 };
 
 const icon = (
@@ -49,7 +49,7 @@ export default function RootLayout({
       >
         <SessionProviderWrapper>
           <ProtectedRoute>
-            <ReactQueryProvider>
+            <QueryClientContextProvider>
               <FcmTokenProvider>
                 <Header
                   className="bg-primary text-primary-foreground"
@@ -63,7 +63,7 @@ export default function RootLayout({
                 />
                 <Toaster />
               </FcmTokenProvider>
-            </ReactQueryProvider>
+            </QueryClientContextProvider>
           </ProtectedRoute>
         </SessionProviderWrapper>
       </body>

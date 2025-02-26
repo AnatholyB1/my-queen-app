@@ -1,8 +1,6 @@
-import { integer, pgTable, varchar } from "drizzle-orm/pg-core";
+import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { notification } from "@/drizzle/schema";
 
-export const User = pgTable("users", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar({ length: 255 }).notNull(),
-  age: integer().notNull(),
-  email: varchar({ length: 255 }).notNull().unique(),
-});
+// Define the types for the Notification table
+export type NotificationType = InferSelectModel<typeof notification>;
+export type NewNotificationType = InferInsertModel<typeof notification>;

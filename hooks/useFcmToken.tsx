@@ -17,10 +17,25 @@ import {
   unsubscribeFromTopic,
 } from "@/backEnd/firebaseNotification";
 import { useSession } from "next-auth/react";
+import {
+  ChangeReadState,
+  CreateNotification,
+  GetUnreadNotification,
+} from "@/backEnd/notification";
+import { UseMutateFunction, useMutation } from "@tanstack/react-query";
+import { NotificationType } from "@/app/db/schema";
 
 type FcmContextType = {
   notificationPermissionStatus: NotificationPermission | null;
   token: string | null;
+  notifications: NotificationType[];
+  server_ChangeReadStateNotification: UseMutateFunction<
+    | { success: boolean; error?: undefined }
+    | { success: boolean; error: unknown },
+    Error,
+    number | number[],
+    unknown
+  >;
 };
 
 const FcmContext = createContext({} as FcmContextType);
@@ -64,13 +79,45 @@ export const FcmTokenProvider = ({
 }) => {
   const { data: session } = useSession();
   const email = session?.user?.email;
-
   const router = useRouter(); // Initialize the router for navigation.
   const [notificationPermissionStatus, setNotificationPermissionStatus] =
     useState<NotificationPermission | null>(null); // State to store the notification permission status.
   const [token, setToken] = useState<string | null>(null); // State to store the FCM token.
   const retryLoadToken = useRef(0); // Ref to keep track of retry attempts.
   const isLoading = useRef(false); // Ref to keep track if a token fetch is currently in progress.
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+
+  const { mutate: server_CreateNotification } = useMutation({
+    mutationFn: CreateNotification,
+    onSuccess: (success) => {
+      if (!success) return;
+      server_GetUnreadNotification(email!);
+    },
+  });
+
+  const { mutate: server_GetUnreadNotification, isPending } = useMutation({
+    mutationFn: GetUnreadNotification,
+    onSuccess: (data) => {
+      if (!data.success) return;
+      if (!data.notifications) return;
+      setNotifications(data.notifications);
+    },
+  });
+
+  const { mutate: server_ChangeReadStateNotification } = useMutation({
+    mutationFn: ChangeReadState,
+    onSuccess: (success) => {
+      if (!success) return;
+      server_GetUnreadNotification(email!);
+    },
+  });
+
+  useEffect(() => {
+    if (!email) return;
+    if (notifications.length != 0) return;
+    if (isPending) return;
+    server_GetUnreadNotification(email);
+  }, [email, server_GetUnreadNotification, notifications, isPending]);
 
   const loadToken = useCallback(async () => {
     // Step 4: Prevent multiple fetches if already fetched or in progress.
@@ -143,26 +190,31 @@ export const FcmTokenProvider = ({
 
       const link = payload.fcmOptions?.link || payload.data?.link;
 
-      if (link) {
-        toast.info(
-          `${payload.notification?.title}: ${payload.notification?.body}`,
-          {
-            action: {
-              label: "Visit",
-              onClick: () => {
-                const link = payload.fcmOptions?.link || payload.data?.link;
-                if (link) {
-                  router.push(link);
-                }
-              },
-            },
-          }
-        );
-      } else {
-        toast.info(
-          `${payload.notification?.title}: ${payload.notification?.body}`
-        );
-      }
+      if (!link) return;
+      const notification = payload.notification;
+
+      if (!notification) return;
+      if (!notification.title || !notification.body) return;
+
+      const bodyToSend = {
+        title: notification.title,
+        message: notification.body,
+        link: link,
+        user: email,
+      };
+
+      server_CreateNotification(bodyToSend);
+
+      toast.info(`${notification.title}: ${notification.body}`, {
+        action: {
+          label: "Visit",
+          onClick: () => {
+            if (link) {
+              router.push(link);
+            }
+          },
+        },
+      });
 
       // --------------------------------------------
       // Disable this if you only want toast notifications.
@@ -183,7 +235,7 @@ export const FcmTokenProvider = ({
       };
       // --------------------------------------------
     });
-  }, [router, token, email]);
+  }, [router, token, email, server_CreateNotification]);
 
   useEffect(() => {
     // Step 10: Initialize the message listener when the component mounts.
@@ -199,6 +251,8 @@ export const FcmTokenProvider = ({
   const contextValue: FcmContextType = {
     notificationPermissionStatus,
     token,
+    notifications,
+    server_ChangeReadStateNotification,
   };
 
   return (

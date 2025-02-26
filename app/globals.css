@@ -159,3 +159,8 @@ img {
   -webkit-user-select: none;
   -ms-user-select: none;
 }
+
+
+button {
+  @apply transform transition-transform duration-300 active:scale-125;
+}

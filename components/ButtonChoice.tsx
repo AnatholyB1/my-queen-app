@@ -102,7 +102,7 @@ const ButtonChoice = React.forwardRef<HTMLDivElement, ButtonChoiceProps>(
               >
                 <Button
                   type="button"
-                  className="rounded-full m-9 w-32 h-32 transform transition-transform duration-300 active:scale-150"
+                  className="rounded-full m-9 w-32 h-32 "
                   onClick={() => server_SendNotification(getBody(_))}
                 >
                   <Content {..._} />

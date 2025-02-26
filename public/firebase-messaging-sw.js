@@ -17,10 +17,6 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Received background message ",
-    payload
-  );
 
   // payload.fcmOptions?.link comes from our backend API route handle
   // payload.data.link comes from the Firebase Console where link is the 'key'
@@ -32,11 +28,10 @@ messaging.onBackgroundMessage((payload) => {
     icon: "./icon-144x144.ico",
     data: { url: link },
   };
-  console.log(notificationOptions, notificationTitle);
+  console.log(notificationTitle, notificationOptions);
 });
 
 self.addEventListener("notificationclick", function (event) {
-  console.log("[firebase-messaging-sw.js] Notification click received.");
 
   event.notification.close();
 
