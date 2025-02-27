@@ -63,7 +63,9 @@ const ButtonChoice = React.forwardRef<HTMLDivElement, ButtonChoiceProps>(
     });
 
     if (!email) {
-      return <div>loading...</div>;
+      return (
+        <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
+      );
     }
 
     const getBody = (data: ButtonData) => {

@@ -20,9 +20,14 @@ import { useSession } from "next-auth/react";
 import {
   ChangeReadState,
   CreateNotification,
+  GetAllNotification,
   GetUnreadNotification,
 } from "@/backEnd/notification";
-import { UseMutateFunction, useMutation } from "@tanstack/react-query";
+import {
+  UseMutateFunction,
+  useMutation,
+  useQuery,
+} from "@tanstack/react-query";
 import { NotificationType } from "@/app/db/schema";
 
 type FcmContextType = {
@@ -36,6 +41,7 @@ type FcmContextType = {
     number | number[],
     unknown
   >;
+  allNotifications: NotificationType[] | undefined;
 };
 
 const FcmContext = createContext({} as FcmContextType);
@@ -87,11 +93,21 @@ export const FcmTokenProvider = ({
   const isLoading = useRef(false); // Ref to keep track if a token fetch is currently in progress.
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
 
+  const { data: allNotifications, refetch } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const result = await GetAllNotification();
+      if (result.success) return result.notifications;
+      else return [] as NotificationType[];
+    },
+  });
+
   const { mutate: server_CreateNotification } = useMutation({
     mutationFn: CreateNotification,
     onSuccess: (success) => {
       if (!success) return;
       server_GetUnreadNotification(email!);
+      refetch();
     },
   });
 
@@ -253,6 +269,7 @@ export const FcmTokenProvider = ({
     token,
     notifications,
     server_ChangeReadStateNotification,
+    allNotifications,
   };
 
   return (

@@ -18,6 +18,11 @@ export default function Notification() {
     server_ChangeReadStateNotification(ids);
   };
 
+  const getDate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  };
+
   return (
     <section className="flex flex-col gap-4 pt-20 pb-20 overflow-y-auto items-center h-screen">
       <h2 className="flex items-start w-full justify-between font-sans font-bold text-xl p-4 font-stretch-condensed tracking-tight underline">
@@ -36,7 +41,12 @@ export default function Notification() {
           <h1 className="text-lg font-bold w-full text-start">
             {notification.title} :
           </h1>
-          <p>{notification.message}</p>
+          <p className="flex flex-col text-start w-full">
+            <span>{notification.message}</span>
+            <span className="text-xs text-muted-foreground">
+              {getDate(notification.timestamp)}
+            </span>
+          </p>
         </Button>
       ))}
     </section>

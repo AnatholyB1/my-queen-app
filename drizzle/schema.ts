@@ -1,4 +1,4 @@
-import { pgTable, integer, varchar } from "drizzle-orm/pg-core"
+import { pgTable, integer, varchar, timestamp } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -10,4 +10,5 @@ export const notification = pgTable("notification", {
 	message: varchar({ length: 255 }).notNull(),
 	link: varchar({ length: 255 }).notNull(),
 	read: integer().default(0).notNull(),
+	timestamp: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });

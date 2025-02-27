@@ -9,6 +9,7 @@ import { Footer } from "@/components/ui/footer";
 import { Toaster } from "@/components/ui/sonner";
 import QueryClientContextProvider from "@/app/providers/ReactQueryProviders";
 import { FcmTokenProvider } from "@/hooks/useFcmToken";
+import { ThemeProvider } from "@/app/providers/themeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,21 +50,28 @@ export default function RootLayout({
       >
         <SessionProviderWrapper>
           <ProtectedRoute>
-            <QueryClientContextProvider>
-              <FcmTokenProvider>
-                <Header
-                  className="bg-primary text-primary-foreground"
-                  size="lg"
-                  icon={icon}
-                />
-                {children}
-                <Footer
-                  className="bg-primary text-primary-foreground"
-                  size="lg"
-                />
-                <Toaster />
-              </FcmTokenProvider>
-            </QueryClientContextProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="dark"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <QueryClientContextProvider>
+                <FcmTokenProvider>
+                  <Header
+                    className="bg-primary text-primary-foreground"
+                    size="lg"
+                    icon={icon}
+                  />
+                  {children}
+                  <Footer
+                    className="bg-primary text-primary-foreground"
+                    size="lg"
+                  />
+                  <Toaster />
+                </FcmTokenProvider>
+              </QueryClientContextProvider>
+            </ThemeProvider>
           </ProtectedRoute>
         </SessionProviderWrapper>
       </body>

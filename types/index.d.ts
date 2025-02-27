@@ -32,6 +32,7 @@ export type SwipeButtonProps = {
 export type ButtonData = {
   text: string;
   title: string;
+  short: string;
   message: string;
   link: string;
 };

@@ -43,3 +43,15 @@ export const ChangeReadState = async (id: number | number[]) => {
     return { success: false, error };
   }
 };
+
+export const GetAllNotification = async () => {
+  try {
+    const notifications = await db
+      .select()
+      .from(notification)
+      .orderBy(notification.timestamp);
+    return { success: true, notifications };
+  } catch (error) {
+    return { success: false, error };
+  }
+};
