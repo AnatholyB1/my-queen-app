@@ -16,71 +16,93 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-const chartData = [
-  { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-  { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-  { browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
-  { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-  { browser: "other", visitors: 190, fill: "var(--color-other)" },
-];
+import { ButtonData } from "@/types";
+import { buttonChoiceData } from "@/data/buttonChoiceData";
+import { useFcmToken } from "@/hooks/useFcmToken";
+import { LoaderCircle } from "lucide-react";
 
-const chartConfig = {
-  visitors: {
-    label: "Visitors",
-  },
-  chrome: {
-    label: "Chrome",
-    color: "hsl(var(--chart-1))",
-  },
-  safari: {
-    label: "Safari",
-    color: "hsl(var(--chart-2))",
-  },
-  firefox: {
-    label: "Firefox",
-    color: "hsl(var(--chart-3))",
-  },
-  edge: {
-    label: "Edge",
-    color: "hsl(var(--chart-4))",
-  },
-  other: {
-    label: "Other",
-    color: "hsl(var(--chart-5))",
-  },
-} satisfies ChartConfig;
+const generateChartConfig = (data: ButtonData[]) => {
+  const chartConfig: Record<string, { label: string; color: string }> = {};
+
+  data.forEach((item, index) => {
+    chartConfig[item.short] = {
+      label: item.short,
+      color: `hsl(var(--chart-${index + 1}))`,
+    };
+  });
+
+  return chartConfig;
+};
+
+const chartConfig = generateChartConfig(buttonChoiceData) satisfies ChartConfig;
+
+console.log(chartConfig);
 
 interface Props {
   user: string;
 }
 
 export default function Component(props: Props) {
-  const totalVisitors = React.useMemo(() => {
-    return chartData.reduce((acc, curr) => acc + curr.visitors, 0);
-  }, []);
-
   const { user } = props;
+  const { allNotifications } = useFcmToken();
+
+  const userEmail =
+    user === "Axelle" ? "axelle.charrier.14@gmail.com" : "anatholyb@gmail.com";
+
+  if (typeof allNotifications == "undefined") {
+    return (
+      <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
+    );
+  }
+
+  const titleToShortMap = buttonChoiceData.reduce((acc, item) => {
+    acc[item.title] = item.short;
+    return acc;
+  }, {} as Record<string, string>);
+
+  const transformedData = allNotifications.reduce((acc, item) => {
+    const type = titleToShortMap[item.title];
+    if (!type) return acc; // Skip if the title does not match
+
+    if (!acc[type]) {
+      acc[type] = {
+        label: type,
+        count: 0,
+        fill: `var(--color-${type})`,
+      };
+    }
+
+    if (item.user === userEmail) {
+      acc[type].count += 1;
+    }
+
+    return acc;
+  }, {} as Record<string, { label: string; count: number; fill: string }>);
+
+  const transformedDataArray = Object.values(transformedData);
+
+  const notificationCounts = transformedDataArray.reduce(
+    (acc, item) => acc + item.count,
+    0
+  );
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col mx-6 w-auto">
       <CardHeader className="items-center pb-0">
         <CardTitle>Pie Chart - Donut</CardTitle>
         <CardDescription>{user} Data</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
-        <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-[250px]"
-        >
+        <ChartContainer config={chartConfig} className="mx-auto aspect-square ">
           <PieChart>
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
             />
             <Pie
-              data={chartData}
-              dataKey="visitors"
-              nameKey="browser"
+              data={transformedDataArray}
+              dataKey="count"
+              nameKey="label"
               innerRadius={60}
               strokeWidth={5}
             >
@@ -99,14 +121,14 @@ export default function Component(props: Props) {
                           y={viewBox.cy}
                           className="fill-foreground text-3xl font-bold"
                         >
-                          {totalVisitors.toLocaleString()}
+                          {notificationCounts.toLocaleString()}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
                           y={(viewBox.cy || 0) + 24}
                           className="fill-muted-foreground"
                         >
-                          Visitors
+                          Notifications
                         </tspan>
                       </text>
                     );
