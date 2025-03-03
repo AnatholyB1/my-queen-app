@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   createContext,
+  useLayoutEffect,
 } from "react";
 import { onMessage } from "firebase/messaging";
 import { fetchToken, messaging } from "@/app/firebase";
@@ -111,7 +112,7 @@ export const FcmTokenProvider = ({
     },
   });
 
-  const { mutate: server_GetUnreadNotification, isPending } = useMutation({
+  const { mutate: server_GetUnreadNotification } = useMutation({
     mutationFn: GetUnreadNotification,
     onSuccess: (data) => {
       if (!data.success) return;
@@ -128,12 +129,14 @@ export const FcmTokenProvider = ({
     },
   });
 
-  useEffect(() => {
-    if (!email) return;
-    if (notifications.length != 0) return;
-    if (isPending) return;
-    server_GetUnreadNotification(email);
-  }, [email, server_GetUnreadNotification, notifications, isPending]);
+  //on mount get unread notifications
+
+  // Call server_GetUnreadNotification once on mount
+  useLayoutEffect(() => {
+    if (email) {
+      server_GetUnreadNotification(email);
+    }
+  }, [email, server_GetUnreadNotification]);
 
   const loadToken = useCallback(async () => {
     // Step 4: Prevent multiple fetches if already fetched or in progress.
