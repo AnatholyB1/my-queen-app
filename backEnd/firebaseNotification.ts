@@ -1,6 +1,7 @@
 "use server";
 import admin from "firebase-admin";
 import { Message } from "firebase-admin/messaging";
+import { CreateNotification } from "./notification";
 
 const serviceAccountBase = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!serviceAccountBase) {
@@ -11,7 +12,7 @@ const fireBaseId = process.env.FIREBASE_ID;
 if (!fireBaseId) {
   throw new Error("Missing FIREBASE_ID environment variable");
 }
-
+console.log("serviceAccountBase", serviceAccountBase);
 // Ensure the private key is correctly formatted
 const formattedPrivateKey = serviceAccountBase.replace(/\\n/g, "\n");
 
@@ -74,6 +75,7 @@ export const SendNotification = async ({
   };
   try {
     await admin.messaging().send(payload);
+    await CreateNotification({ user, title, message, link });
 
     return { success: true, message: "Notification sent!" };
   } catch (error) {

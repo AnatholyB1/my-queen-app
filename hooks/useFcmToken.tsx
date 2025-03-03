@@ -20,7 +20,6 @@ import {
 import { useSession } from "next-auth/react";
 import {
   ChangeReadState,
-  CreateNotification,
   GetAllNotification,
   GetUnreadNotification,
 } from "@/backEnd/notification";
@@ -103,15 +102,6 @@ export const FcmTokenProvider = ({
     },
   });
 
-  const { mutate: server_CreateNotification } = useMutation({
-    mutationFn: CreateNotification,
-    onSuccess: (success) => {
-      if (!success) return;
-      server_GetUnreadNotification(email!);
-      refetch();
-    },
-  });
-
   const { mutate: server_GetUnreadNotification } = useMutation({
     mutationFn: GetUnreadNotification,
     onSuccess: (data) => {
@@ -123,8 +113,8 @@ export const FcmTokenProvider = ({
 
   const { mutate: server_ChangeReadStateNotification } = useMutation({
     mutationFn: ChangeReadState,
-    onSuccess: (success) => {
-      if (!success) return;
+    onSuccess: (data) => {
+      if (!data.success) return;
       server_GetUnreadNotification(email!);
     },
   });
@@ -202,6 +192,8 @@ export const FcmTokenProvider = ({
 
     // Step 9: Register a listener for incoming FCM messages.
     onMessage(m, async (payload) => {
+      refetch();
+
       if (Notification.permission !== "granted") return;
       //if i'm the one sending the message i don't want to see the notification
       if (!email) return;
@@ -214,15 +206,7 @@ export const FcmTokenProvider = ({
 
       if (!notification) return;
       if (!notification.title || !notification.body) return;
-
-      const bodyToSend = {
-        title: notification.title,
-        message: notification.body,
-        link: link,
-        user: email,
-      };
-
-      server_CreateNotification(bodyToSend);
+      server_GetUnreadNotification(email);
 
       toast.info(`${notification.title}: ${notification.body}`, {
         action: {
@@ -254,7 +238,7 @@ export const FcmTokenProvider = ({
       };
       // --------------------------------------------
     });
-  }, [router, token, email, server_CreateNotification]);
+  }, [router, token, email, refetch, server_GetUnreadNotification]);
 
   useEffect(() => {
     // Step 10: Initialize the message listener when the component mounts.
