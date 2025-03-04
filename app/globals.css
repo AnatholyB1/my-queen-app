@@ -248,12 +248,12 @@ body {
 }
 
 .disappear {
-  animation: disappear 0.5s ease-out;
+  animation: disappear 0.5s ease-out forwards;
 }
 
 
 .appear {
-  animation: appear 0.5s ease-out;
+  animation: appear 0.5s ease-out forwards  ;
 }
 
 
