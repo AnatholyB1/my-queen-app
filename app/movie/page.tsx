@@ -149,7 +149,7 @@ export default function MoviePage() {
                     width={300}
                     height={300}
                   />
-                  <h1 className="text-xl font-bold break-words line-clamp-2">
+                  <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
                     {movie.title}
                   </h1>
                   <p>Rating: {movie.vote_average}</p>
