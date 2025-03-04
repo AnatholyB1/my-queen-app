@@ -26,8 +26,13 @@ export default function SwipeCard({
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-20, 20]);
   const [isSwiped, setIsSwiped] = useState(false);
-  const { setShadowRight, setShadowLeft } = useSwipeContext();
+  const [isEnded, setIsEnded] = useState(false);
+  const { setShadowRight, setShadowLeft, setSwipeLeft, setSwipeRight } =
+    useSwipeContext();
   const { shadowRight, shadowLeft } = useSwipeContext();
+  const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
+    null
+  );
 
   const handleDragEnd = (
     event: MouseEvent | TouchEvent,
@@ -37,20 +42,14 @@ export default function SwipeCard({
       isDragging(false);
     }
     if (info.offset.x > 50) {
+      setSwipeDirection("right");
       setIsSwiped(true);
-      if (onSwipe) {
-        onSwipe(true, true);
-      }
-      setShadowLeft(false);
-      setShadowRight(false);
+      setSwipeRight(true);
     }
     if (info.offset.x < -50) {
+      setSwipeDirection("left");
       setIsSwiped(true);
-      if (onSwipe) {
-        onSwipe(true, false);
-      }
-      setShadowLeft(false);
-      setShadowRight(false);
+      setSwipeLeft(true);
     }
     if (info.offset.x > -50 && info.offset.x < 50) {
       //stop animation
@@ -81,12 +80,14 @@ export default function SwipeCard({
     }
   };
 
-  if (isSwiped) return null;
+  if (isEnded) {
+    return null;
+  }
 
   return (
     <motion.div
       {...props}
-      className={`absolute z-10 rounded-lg shadow-xl ${
+      className={`absolute duration-100 z-10 rounded-lg shadow-xl fade-in ${
         shadowLeft && "shadow-teal-400"
       } ${shadowRight && "shadow-red-400"} ${className}`}
       style={{ x, rotate }}
@@ -95,6 +96,28 @@ export default function SwipeCard({
       dragElastic={0}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
+      initial={isSwiped ? { opacity: 1, x: x.get(), rotate: rotate.get() } : {}}
+      animate={
+        isSwiped
+          ? {
+              opacity: 0,
+              x: swipeDirection === "right" ? 200 : -200,
+              rotate: swipeDirection === "right" ? 20 : -20,
+            }
+          : {}
+      }
+      transition={isSwiped ? { duration: 0.2 } : {}}
+      onAnimationComplete={() => {
+        if (isSwiped) {
+          setIsSwiped(false);
+          setShadowLeft(false);
+          setShadowRight(false);
+          if (onSwipe) {
+            onSwipe(true, swipeDirection === "right");
+            setIsEnded(true);
+          }
+        }
+      }}
     >
       {children}
     </motion.div>

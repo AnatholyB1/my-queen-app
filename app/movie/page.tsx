@@ -142,7 +142,9 @@ export default function MoviePage() {
               ) : (
                 <>
                   <Image
-                    className="object-cover  w-[300px] h-[300px] rounded-lg border border-zinc-50"
+                    //prevent dragging of the image
+                    draggable="false"
+                    className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
                     src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
                     alt={movie.title}
                     width={300}

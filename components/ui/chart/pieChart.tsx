@@ -36,8 +36,6 @@ const generateChartConfig = (data: ButtonData[]) => {
 
 const chartConfig = generateChartConfig(buttonChoiceData) satisfies ChartConfig;
 
-console.log(chartConfig);
-
 interface Props {
   user: string;
 }
