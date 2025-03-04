@@ -138,7 +138,7 @@ export default function MoviePage() {
           >
             <div className="relative text-accent text-inter text-normal font-bold flex flex-col rounded-lg gap-2 px-4 py-6 bg-foreground ">
               {showOverview ? (
-                <p className="word-break">{movie.overview}</p>
+                <p className="word-break  max-w-[300px] ">{movie.overview}</p>
               ) : (
                 <>
                   <Image
