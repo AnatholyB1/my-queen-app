@@ -13,45 +13,44 @@ export default function MoviePage() {
   const [showOverview, setShowOverview] = useState(false);
   const [currentCard, setCurrentCard] = useState(0);
   const [movies, setMovies] = useState<Movie[]>([]);
-  const { data, isError, isSuccess, fetchNextPage, hasNextPage } =
-    useInfiniteQuery({
-      queryKey: ["movies"],
-      queryFn: async ({ pageParam = 1 }) => {
-        const { data } = await axios.get(
-          `https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${pageParam}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apikey}`,
-            },
-          }
-        );
-        const { page, total_pages, total_results, results } = data as {
-          page: number;
-          total_pages: number;
-          total_results: number;
-          results: Movie[];
-        };
-
-        return {
-          page,
-          total_pages,
-          total_results,
-          results,
-        };
-      },
-      getNextPageParam: (lastPage: {
+  const { data, isError, isSuccess, fetchNextPage } = useInfiniteQuery({
+    queryKey: ["movies"],
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await axios.get(
+        `https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${pageParam}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apikey}`,
+          },
+        }
+      );
+      const { page, total_pages, total_results, results } = data as {
         page: number;
         total_pages: number;
         total_results: number;
         results: Movie[];
-      }) => {
-        return lastPage.page < lastPage.total_pages
-          ? lastPage.page + 1
-          : undefined;
-      },
-      initialPageParam: 1,
-    });
+      };
+
+      return {
+        page,
+        total_pages,
+        total_results,
+        results,
+      };
+    },
+    getNextPageParam: (lastPage: {
+      page: number;
+      total_pages: number;
+      total_results: number;
+      results: Movie[];
+    }) => {
+      return lastPage.page < lastPage.total_pages
+        ? lastPage.page + 1
+        : undefined;
+    },
+    initialPageParam: 1,
+  });
 
   useEffect(() => {
     if (isSuccess) {
