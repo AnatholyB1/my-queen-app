@@ -55,7 +55,6 @@ export default function MoviePage() {
   useEffect(() => {
     if (isSuccess) {
       {
-        console.log(data.pages.flatMap((page) => page.results));
         //delete movies with same ID:
         const uniqueMovies = data.pages
           .flatMap((page) => page.results)
