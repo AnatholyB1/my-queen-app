@@ -50,7 +50,7 @@ function Menu() {
 }
 
 const footerVariants = cva(
-  "flex absolute bottom-0 w-full items-center gap-4 text-xs font-bold p-4",
+  "flex absolute z-10 bottom-0 w-full items-center gap-4 text-xs font-bold p-4",
   {
     variants: {
       size: {

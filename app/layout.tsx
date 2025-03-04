@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import QueryClientContextProvider from "@/app/providers/ReactQueryProviders";
 import { FcmTokenProvider } from "@/hooks/useFcmToken";
 import { ThemeProvider } from "@/app/providers/themeProvider";
+import { SwipeProvider } from "./providers/SwipeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,21 +57,25 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <QueryClientContextProvider>
-                <FcmTokenProvider>
-                  <Header
-                    className="bg-primary text-primary-foreground"
-                    size="lg"
-                    icon={icon}
-                  />
-                  {children}
-                  <Footer
-                    className="bg-primary text-primary-foreground"
-                    size="lg"
-                  />
-                  <Toaster />
-                </FcmTokenProvider>
-              </QueryClientContextProvider>
+              <SwipeProvider>
+                <QueryClientContextProvider>
+                  <FcmTokenProvider>
+                    <Header
+                      className="bg-primary text-primary-foreground"
+                      size="lg"
+                      icon={icon}
+                    />
+
+                    {children}
+                    <span />
+                    <Footer
+                      className="bg-primary text-primary-foreground"
+                      size="lg"
+                    />
+                    <Toaster />
+                  </FcmTokenProvider>
+                </QueryClientContextProvider>
+              </SwipeProvider>
             </ThemeProvider>
           </ProtectedRoute>
         </SessionProviderWrapper>

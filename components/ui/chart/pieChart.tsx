@@ -87,7 +87,7 @@ export default function Component(props: Props) {
   );
 
   return (
-    <Card className="flex flex-col mx-6 w-auto">
+    <Card className="flex flex-col w-full ">
       <CardHeader className="items-center pb-0">
         <CardTitle>Pie Chart - Donut</CardTitle>
         <CardDescription>{user} Data</CardDescription>

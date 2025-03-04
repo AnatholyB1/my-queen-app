@@ -66,7 +66,7 @@ export default function Component() {
   const transformedDataArray = Object.values(transformedData);
 
   return (
-    <Card className="mx-6">
+    <Card>
       <CardHeader>
         <CardTitle>Bar Chart</CardTitle>
         <CardDescription>
@@ -74,7 +74,7 @@ export default function Component() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig}>
+        <ChartContainer className="overflow-x-auto" config={chartConfig}>
           <BarChart accessibilityLayer data={transformedDataArray}>
             <CartesianGrid vertical={false} />
             <XAxis
