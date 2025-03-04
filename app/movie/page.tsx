@@ -143,13 +143,15 @@ export default function MoviePage() {
               ) : (
                 <>
                   <Image
-                    className="object-cover rounded-lg border border-zinc-50"
+                    className="object-cover  w-[300px] h-[300px] rounded-lg border border-zinc-50"
                     src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
                     alt={movie.title}
                     width={300}
-                    height={500}
+                    height={300}
                   />
-                  <h1 className="text-xl font-bold">{movie.title}</h1>
+                  <h1 className="text-xl font-bold break-words line-clamp-2">
+                    {movie.title}
+                  </h1>
                   <p>Rating: {movie.vote_average}</p>
                   <p>Release Date: {movie.release_date}</p>
                 </>
