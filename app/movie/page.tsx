@@ -6,6 +6,8 @@ import { LoaderCircle } from "lucide-react";
 import Image from "next/image";
 import SwipeCard from "@/components/ui/frame";
 import { useEffect, useState } from "react";
+import { AlignRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const apikey = process.env.NEXT_PUBLIC_MOVIES_API_KEY;
 
@@ -78,24 +80,6 @@ export default function MoviePage() {
     );
   }
 
-  let timer: NodeJS.Timeout;
-
-  const handleTouchStart = () => {
-    timer = setTimeout(() => {
-      setShowOverview(true);
-    }, 1000);
-  };
-
-  const handleTouchEnd = () => {
-    clearTimeout(timer);
-    setShowOverview(false);
-  };
-
-  const handleTouchCancel = () => {
-    clearTimeout(timer);
-    setShowOverview(false);
-  };
-
   interface ContextMenuEvent extends React.MouseEvent<HTMLDivElement> {
     preventDefault: () => void;
   }
@@ -109,16 +93,7 @@ export default function MoviePage() {
       {isSuccess &&
         movies.map((movie, index) => (
           <SwipeCard
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchCancel}
             onContextMenu={handleContextMenu}
-            isDragging={(isDragging) => {
-              if (isDragging) {
-                clearTimeout(timer);
-                setShowOverview(false);
-              }
-            }}
             className={`${currentCard == movie.id ? "block" : "hidden"} `}
             onSwipe={(isSwiped, choice) => {
               if (isSwiped) {
@@ -137,26 +112,35 @@ export default function MoviePage() {
             key={movie.id}
           >
             <div className="relative text-accent text-inter text-normal font-bold flex flex-col rounded-lg gap-2 px-4 py-6 bg-foreground ">
-              {showOverview ? (
-                <p className="word-break  max-w-[300px] ">{movie.overview}</p>
-              ) : (
-                <>
-                  <Image
-                    //prevent dragging of the image
-                    draggable="false"
-                    className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
-                    src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
-                    alt={movie.title}
-                    width={300}
-                    height={300}
-                  />
-                  <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
-                    {movie.title}
-                  </h1>
-                  <p>Rating: {movie.vote_average}</p>
-                  <p>Release Date: {movie.release_date}</p>
-                </>
-              )}
+              <>
+                <Image
+                  //prevent dragging of the image
+                  draggable="false"
+                  className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
+                  src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
+                  alt={movie.title}
+                  width={300}
+                  height={300}
+                />
+                <Button
+                  onClick={() => setShowOverview((prev) => !prev)}
+                  size={"icon"}
+                  className="absolute top-1/2 right-2"
+                >
+                  <AlignRight />
+                </Button>
+                {showOverview ? (
+                  <>
+                    <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
+                      {movie.title}
+                    </h1>
+                    <p>Rating: {movie.vote_average}</p>
+                    <p>Release Date: {movie.release_date}</p>
+                  </>
+                ) : (
+                  <p className="word-break  max-w-[300px] ">{movie.overview}</p>
+                )}
+              </>
             </div>
           </SwipeCard>
         ))}
