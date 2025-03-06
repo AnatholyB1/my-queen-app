@@ -1,4 +1,4 @@
-import { pgTable, integer, varchar, timestamp, unique, boolean, text, char, date, serial } from "drizzle-orm/pg-core"
+import { pgTable, integer, varchar, timestamp, unique, boolean, foreignKey, text } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -18,11 +18,20 @@ export const movie = pgTable("movie", {
 	anatholy: boolean().default(false).notNull(),
 	axelle: boolean().default(false).notNull(),
 	movieId: integer("movie_id").notNull(),
-	backdropPath: text("backdrop_path").notNull(),
-	overview: char({ length: 500 }).notNull(),
-	genreIds: text("genre_ids").notNull(),
-	releaseDate: date("release_date").notNull(),
-	voteAverage: serial("vote_average").notNull(),
+	page: integer().notNull(),
 }, (table) => [
 	unique("movie_movie_id_key").on(table.movieId),
+]);
+
+export const last = pgTable("last", {
+	user: text().notNull(),
+	id: integer().primaryKey().generatedAlwaysAsIdentity({ name: "last_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 2147483647, cache: 1 }),
+	movie: integer().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.movie],
+			foreignColumns: [movie.id],
+			name: "constraint_1"
+		}),
+	unique("last_user_key").on(table.user),
 ]);

@@ -1,6 +1,6 @@
 "use client";
 import { Movie } from "@/types";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { LoaderCircle } from "lucide-react";
 import Image from "next/image";
@@ -8,6 +8,10 @@ import SwipeCard from "@/components/ui/frame";
 import { useEffect, useState } from "react";
 import { AlignRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getLastMoviePage, updateLastMovie } from "@/backEnd/movies";
+import { useSession } from "next-auth/react";
+import { NewMovieType } from "../db/schema";
+import { useSwipeContext } from "@/app/providers/SwipeProvider";
 
 const apikey = process.env.NEXT_PUBLIC_MOVIES_API_KEY;
 
@@ -15,9 +19,32 @@ export default function MoviePage() {
   const [showOverview, setShowOverview] = useState(false);
   const [currentCard, setCurrentCard] = useState(0);
   const [movies, setMovies] = useState<Movie[]>([]);
+  const { data: session } = useSession();
+  const { setIsMatched } = useSwipeContext();
+
+  const waitSession = async () => {
+    if (!session) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      waitSession();
+    }
+  };
+
   const { data, isError, isSuccess, fetchNextPage } = useInfiniteQuery({
     queryKey: ["movies"],
     queryFn: async ({ pageParam = 1 }) => {
+      //wait for session to be defined
+      waitSession();
+
+      const user =
+        session?.user?.email === "anatholyb@gmail.com" ? "anatholy" : "axelle";
+      //if pageParam is 1, get the last page from the database
+      const lastpageData = await getLastMoviePage(user);
+      if (pageParam === 1) {
+        if (lastpageData.movie) {
+          pageParam = lastpageData.movie.page;
+        }
+      }
+
       const { data } = await axios.get(
         `https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${pageParam}`,
         {
@@ -34,12 +61,23 @@ export default function MoviePage() {
         results: Movie[];
       };
 
-      return {
+      const movieToReturn = {
         page,
         total_pages,
         total_results,
         results,
       };
+
+      //cut the results to the begin the list on the next movie from the last page
+      if (page === lastpageData.movie?.page) {
+        //start the list from the next movie of lastpageData.movie.movieId
+        const index = results.findIndex(
+          (movie) => movie.id === lastpageData.movie?.movieId
+        );
+        movieToReturn.results = results.slice(index + 1);
+      }
+
+      return movieToReturn;
     },
     getNextPageParam: (lastPage: {
       page: number;
@@ -52,6 +90,16 @@ export default function MoviePage() {
         : undefined;
     },
     initialPageParam: 1,
+  });
+
+  const { mutate: server_updateLastMovie } = useMutation({
+    mutationFn: updateLastMovie,
+    onSuccess: (data) => {
+      if (data.matched) {
+        console.log("matched");
+        setIsMatched(true);
+      }
+    },
   });
 
   useEffect(() => {
@@ -106,7 +154,30 @@ export default function MoviePage() {
                 if (currentIndex > movies.length * 0.75) {
                   fetchNextPage();
                 }
-                console.log(choice);
+
+                // get the movie to update and map it to the movie object
+                const mapMovieToNewType = (movie: Movie): NewMovieType => {
+                  return {
+                    movieId: movie.id,
+                    page: data.pages[data.pages.length - 1].page,
+                  };
+                };
+                const movieToUpdate = movies.find(
+                  (movie) => movie.id === currentCard
+                );
+
+                if (!movieToUpdate) return;
+
+                const movieDataMap = mapMovieToNewType(movieToUpdate);
+
+                server_updateLastMovie({
+                  movieData: movieDataMap,
+                  choice,
+                  user:
+                    session?.user?.email === "anatholyb@gmail.com"
+                      ? "anatholy"
+                      : "axelle",
+                });
               }
             }}
             key={movie.id}
@@ -128,7 +199,7 @@ export default function MoviePage() {
               >
                 <AlignRight />
               </Button>
-              {showOverview ? (
+              {!showOverview ? (
                 <>
                   <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
                     {movie.title}
