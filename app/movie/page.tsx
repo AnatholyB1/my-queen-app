@@ -112,35 +112,33 @@ export default function MoviePage() {
             key={movie.id}
           >
             <div className="relative text-accent text-inter text-normal font-bold flex flex-col rounded-lg gap-2 px-4 py-6 bg-foreground ">
-              <>
-                <Image
-                  //prevent dragging of the image
-                  draggable="false"
-                  className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
-                  src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
-                  alt={movie.title}
-                  width={300}
-                  height={300}
-                />
-                <Button
-                  onClick={() => setShowOverview((prev) => !prev)}
-                  size={"icon"}
-                  className="absolute top-1/2 right-2"
-                >
-                  <AlignRight />
-                </Button>
-                {showOverview ? (
-                  <>
-                    <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
-                      {movie.title}
-                    </h1>
-                    <p>Rating: {movie.vote_average}</p>
-                    <p>Release Date: {movie.release_date}</p>
-                  </>
-                ) : (
-                  <p className="word-break  max-w-[300px] ">{movie.overview}</p>
-                )}
-              </>
+              <Image
+                //prevent dragging of the image
+                draggable="false"
+                className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
+                src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
+                alt={movie.title}
+                width={300}
+                height={300}
+              />
+              <Button
+                onClick={() => setShowOverview((prev) => !prev)}
+                size={"icon"}
+                className="absolute top-1/2 right-2"
+              >
+                <AlignRight />
+              </Button>
+              {showOverview ? (
+                <>
+                  <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
+                    {movie.title}
+                  </h1>
+                  <p>Rating: {movie.vote_average}</p>
+                  <p>Release Date: {movie.release_date}</p>
+                </>
+              ) : (
+                <p className="word-break  max-w-[300px] ">{movie.overview}</p>
+              )}
             </div>
           </SwipeCard>
         ))}

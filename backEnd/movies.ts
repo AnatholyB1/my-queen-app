@@ -1,19 +1,44 @@
 "use server";
+import { db } from "@/app/db";
+import { NewMovieType, MovieType } from "@/app/db/schema";
+import { movie } from "@/drizzle/schema";
+import { and, eq, inArray, not } from "drizzle-orm";
 
-const apikey = process.env.MOVIES_API_KEY;
-if (!apikey) {
-  throw new Error("Missing MOVIES_API_KEY environment variable");
+export async function getMatchedMovies() {
+  try {
+    const movies = await db
+      .select()
+      .from(movie)
+      .where(and(eq(movie.anatholy, true), eq(movie.axelle, true)));
+    return { success: true, movies };
+  } catch (error) {
+    return { success: false, error };
+  }
 }
 
-export const getMovies = async () => {
+export async function checkMatch(id: number) {
   try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/movie/popular?api_key=${apikey}&language=fr-FR&page=1`
-    );
-    const data = await res.json();
-    return data;
+    const matched = await db
+      .select()
+      .from(movie)
+      .where(
+        and(eq(movie.id, id), eq(movie.anatholy, true), eq(movie.axelle, true))
+      );
+    if (matched.length === 0) {
+      return { success: true, matched: false };
+    }
+    return { success: true, matched: true };
   } catch (error) {
-    console.log(error);
-    return { success: false, error: (error as Error).message };
+    return { success: false, error };
   }
-};
+}
+
+
+export async function createMovie(data: NewMovieType) {
+  try {
+    await db.insert(movie).values(data);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error };
+  }
+}
