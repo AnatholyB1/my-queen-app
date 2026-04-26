@@ -47,7 +47,7 @@ function getClientIp(req: NextRequest): string {
   return "unknown";
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Rate limit /api/* (NextAuth, server actions go through the action endpoint)

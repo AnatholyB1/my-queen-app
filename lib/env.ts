@@ -33,16 +33,20 @@ const clientSchema = z.object({
 export type ServerEnv = z.infer<typeof serverSchema>;
 export type ClientEnv = z.infer<typeof clientSchema>;
 
-const isServer = typeof window === "undefined";
-const isBuild = process.env.NEXT_PHASE === "phase-production-build";
+const isBuild = () => process.env.NEXT_PHASE === "phase-production-build";
+const isTest = () => process.env.NODE_ENV === "test";
 
-function parse<T extends z.ZodTypeAny>(schema: T, raw: Record<string, unknown>, label: string): z.infer<T> {
+function validate<T extends z.ZodTypeAny>(
+  schema: T,
+  raw: Record<string, unknown>,
+  label: string,
+): z.infer<T> {
   const result = schema.safeParse(raw);
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    if (isBuild || process.env.NODE_ENV === "test") {
+    if (isBuild() || isTest()) {
       console.warn(`[env] ${label} validation skipped:\n${issues}`);
       return raw as z.infer<T>;
     }
@@ -51,11 +55,7 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: Record<string, unknown>, 
   return result.data;
 }
 
-export const env: ServerEnv = isServer
-  ? parse(serverSchema, process.env, "server")
-  : (undefined as unknown as ServerEnv);
-
-const clientRaw = {
+const clientRaw = () => ({
   NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -64,6 +64,39 @@ const clientRaw = {
   NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
   NEXT_PUBLIC_FIREBASE_VAPID_KEY: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-};
+});
 
-export const clientEnv: ClientEnv = parse(clientSchema, clientRaw, "client");
+let _serverEnv: ServerEnv | null = null;
+let _clientEnv: ClientEnv | null = null;
+
+/**
+ * Validate server-side env on first access. Safe to call from server modules
+ * that may also be imported on the client (returns the un-validated raw object
+ * with TS types when called outside of a server context).
+ */
+export function getServerEnv(): ServerEnv {
+  if (typeof window !== "undefined") {
+    return process.env as unknown as ServerEnv;
+  }
+  if (!_serverEnv) {
+    _serverEnv = validate(serverSchema, process.env, "server");
+  }
+  return _serverEnv;
+}
+
+export function getClientEnv(): ClientEnv {
+  if (!_clientEnv) {
+    _clientEnv = validate(clientSchema, clientRaw(), "client");
+  }
+  return _clientEnv;
+}
+
+// Backwards-compat exports — these used to be eagerly-evaluated constants.
+// They're now Proxies that defer until first property access.
+export const env: ServerEnv = new Proxy({} as ServerEnv, {
+  get: (_t, prop) => Reflect.get(getServerEnv(), prop),
+});
+
+export const clientEnv: ClientEnv = new Proxy({} as ClientEnv, {
+  get: (_t, prop) => Reflect.get(getClientEnv(), prop),
+});
