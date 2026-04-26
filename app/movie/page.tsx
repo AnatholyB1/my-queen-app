@@ -2,217 +2,172 @@
 import { Movie } from "@/types";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, AlignRight } from "lucide-react";
 import Image from "next/image";
 import SwipeCard from "@/components/ui/frame";
-import { useEffect, useState } from "react";
-import { AlignRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getLastMoviePage, updateLastMovie } from "@/backEnd/movies";
 import { useSession } from "next-auth/react";
-import { NewMovieType } from "../db/schema";
 import { useSwipeContext } from "@/app/providers/SwipeProvider";
 
-const apikey = process.env.NEXT_PUBLIC_MOVIES_API_KEY;
+type TmdbPage = {
+  page: number;
+  total_pages: number;
+  total_results: number;
+  results: Movie[];
+};
+
+const MAX_PAGES = 50;
+const PREFETCH_THRESHOLD = 0.75;
+
+async function fetchTrending(page: number): Promise<TmdbPage> {
+  const { data } = await axios.get<TmdbPage>(`/api/movies/trending`, {
+    params: { page },
+  });
+  return data;
+}
 
 export default function MoviePage() {
   const [showOverview, setShowOverview] = useState(false);
-  const [currentCard, setCurrentCard] = useState(0);
+  const [currentCard, setCurrentCard] = useState<number | null>(null);
   const [movies, setMovies] = useState<Movie[]>([]);
-  const { data: session } = useSession();
+  const { status } = useSession();
   const { setIsMatched } = useSwipeContext();
+  const isAuthed = status === "authenticated";
 
-  const waitSession = async () => {
-    if (!session) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      waitSession();
-    }
-  };
-
-  const { data, isError, isSuccess, fetchNextPage } = useInfiniteQuery({
+  const { data, isError, isSuccess, fetchNextPage, isFetching } = useInfiniteQuery({
     queryKey: ["movies"],
-    queryFn: async ({ pageParam = 1 }) => {
-      //wait for session to be defined
-      waitSession();
+    enabled: isAuthed,
+    queryFn: async ({ pageParam }) => {
+      const resume = await getLastMoviePage();
+      const resumeMovie = resume.success ? resume.data.movie : null;
 
-      const user =
-        session?.user?.email === "anatholyb@gmail.com" ? "anatholy" : "axelle";
-      //if pageParam is 1, get the last page from the database
-      const lastpageData = await getLastMoviePage(user);
-      if (pageParam === 1) {
-        if (lastpageData.movie) {
-          pageParam = lastpageData.movie.page;
+      const requestedPage = pageParam === 1 && resumeMovie ? resumeMovie.page : pageParam;
+      const pageData = await fetchTrending(requestedPage);
+
+      // Trim already-seen entries up to the resume movie when applicable.
+      if (resumeMovie && pageData.page === resumeMovie.page) {
+        const idx = pageData.results.findIndex((m) => m.id === resumeMovie.movieId);
+        if (idx >= 0) {
+          pageData.results = pageData.results.slice(idx + 1);
         }
       }
-
-      const { data } = await axios.get(
-        `https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${pageParam}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apikey}`,
-          },
-        }
-      );
-      const { page, total_pages, total_results, results } = data as {
-        page: number;
-        total_pages: number;
-        total_results: number;
-        results: Movie[];
-      };
-
-      const movieToReturn = {
-        page,
-        total_pages,
-        total_results,
-        results,
-      };
-
-      //cut the results to the begin the list on the next movie from the last page
-      if (page === lastpageData.movie?.page) {
-        //start the list from the next movie of lastpageData.movie.movieId
-        const index = results.findIndex(
-          (movie) => movie.id === lastpageData.movie?.movieId
-        );
-        movieToReturn.results = results.slice(index + 1);
-      }
-
-      return movieToReturn;
+      return pageData;
     },
-    getNextPageParam: (lastPage: {
-      page: number;
-      total_pages: number;
-      total_results: number;
-      results: Movie[];
-    }) => {
-      return lastPage.page < lastPage.total_pages
-        ? lastPage.page + 1
-        : undefined;
+    getNextPageParam: (lastPage) => {
+      if (!lastPage) return undefined;
+      const next = lastPage.page + 1;
+      if (next > Math.min(lastPage.total_pages, MAX_PAGES)) return undefined;
+      return next;
     },
     initialPageParam: 1,
+    staleTime: 60_000,
   });
 
-  const { mutate: server_updateLastMovie } = useMutation({
+  const { mutate: persistChoice } = useMutation({
     mutationFn: updateLastMovie,
-    onSuccess: (data) => {
-      if (data.matched) {
-        console.log("matched");
+    onSuccess: (res) => {
+      if (res.success && res.data.matched) {
         setIsMatched(true);
       }
     },
   });
 
+  // Flatten + de-duplicate movies coming back from infinite query
   useEffect(() => {
-    if (isSuccess) {
-      {
-        //delete movies with same ID:
-        const uniqueMovies = data.pages
-          .flatMap((page) => page.results)
-          .filter((movie) => !movies.some((m) => m.id === movie.id));
-        setMovies([...movies, ...uniqueMovies]);
-        if (currentCard === 0) {
-          setCurrentCard(data.pages[0].results[0].id);
+    if (!isSuccess || !data) return;
+    const seen = new Set<number>();
+    const flattened: Movie[] = [];
+    for (const page of data.pages) {
+      for (const m of page.results) {
+        if (!seen.has(m.id)) {
+          seen.add(m.id);
+          flattened.push(m);
         }
       }
-      return () => {};
     }
-  }, [data, isSuccess, setMovies]);
+    setMovies(flattened);
+    setCurrentCard((prev) => prev ?? flattened[0]?.id ?? null);
+  }, [data, isSuccess]);
+
+  const currentPageNumber = useMemo(
+    () => data?.pages[data.pages.length - 1]?.page ?? 1,
+    [data],
+  );
 
   if (isError) {
-    return <div>error...</div>;
-  }
-
-  if (movies.length === 0) {
     return (
-      <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center text-destructive">
+        Impossible de charger les films. Réessaie plus tard.
+      </div>
     );
   }
 
-  interface ContextMenuEvent extends React.MouseEvent<HTMLDivElement> {
-    preventDefault: () => void;
+  if (!isAuthed || movies.length === 0 || isFetching) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <LoaderCircle className="animate-spin" aria-label="Chargement" />
+      </div>
+    );
   }
-
-  const handleContextMenu = (event: ContextMenuEvent) => {
-    event.preventDefault();
-  };
 
   return (
     <section className="flex justify-center items-center h-[calc(100vh-4rem)] overflow-y-scroll flex-col w-screen">
-      {isSuccess &&
-        movies.map((movie, index) => (
-          <SwipeCard
-            onContextMenu={handleContextMenu}
-            className={`${currentCard == movie.id ? "block" : "hidden"} `}
-            onSwipe={(isSwiped, choice) => {
-              if (isSwiped) {
-                setCurrentCard(movies[index + 1].id);
-                // get the index of the current card in movies array
-                const currentIndex = movies.findIndex(
-                  (movie) => movie.id === currentCard
-                );
-                // if current index is greater then 3/4 of the movies array length, fetch next page
-                if (currentIndex > movies.length * 0.75) {
-                  fetchNextPage();
-                }
+      {movies.map((movie, index) => (
+        <SwipeCard
+          onContextMenu={(e) => e.preventDefault()}
+          className={currentCard === movie.id ? "block" : "hidden"}
+          onSwipe={(isSwiped, choice) => {
+            if (!isSwiped) return;
 
-                // get the movie to update and map it to the movie object
-                const mapMovieToNewType = (movie: Movie): NewMovieType => {
-                  return {
-                    movieId: movie.id,
-                    page: data.pages[data.pages.length - 1].page,
-                  };
-                };
-                const movieToUpdate = movies.find(
-                  (movie) => movie.id === currentCard
-                );
+            const next = movies[index + 1];
+            if (next) setCurrentCard(next.id);
 
-                if (!movieToUpdate) return;
+            const currentIndex = movies.findIndex((m) => m.id === currentCard);
+            if (currentIndex > movies.length * PREFETCH_THRESHOLD) {
+              fetchNextPage();
+            }
 
-                const movieDataMap = mapMovieToNewType(movieToUpdate);
-
-                server_updateLastMovie({
-                  movieData: movieDataMap,
-                  choice,
-                  user:
-                    session?.user?.email === "anatholyb@gmail.com"
-                      ? "anatholy"
-                      : "axelle",
-                });
-              }
-            }}
-            key={movie.id}
-          >
-            <div className="relative text-accent text-inter text-normal font-bold flex flex-col rounded-lg gap-2 px-4 py-6 bg-foreground ">
-              <Image
-                //prevent dragging of the image
-                draggable="false"
-                className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
-                src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
-                alt={movie.title}
-                width={300}
-                height={300}
-              />
-              <Button
-                onClick={() => setShowOverview((prev) => !prev)}
-                size={"icon"}
-                className="absolute top-1/2 right-2"
-              >
-                <AlignRight />
-              </Button>
-              {!showOverview ? (
-                <>
-                  <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
-                    {movie.title}
-                  </h1>
-                  <p>Rating: {movie.vote_average}</p>
-                  <p>Release Date: {movie.release_date}</p>
-                </>
-              ) : (
-                <p className="word-break  max-w-[300px] ">{movie.overview}</p>
-              )}
-            </div>
-          </SwipeCard>
-        ))}
+            persistChoice({
+              movieData: { movieId: movie.id, page: currentPageNumber },
+              choice,
+            });
+          }}
+          key={movie.id}
+        >
+          <div className="relative text-accent text-inter font-bold flex flex-col rounded-lg gap-2 px-4 py-6 bg-foreground">
+            <Image
+              draggable="false"
+              className="object-cover max-w-[300px] w-full h-auto rounded-lg border border-zinc-50"
+              src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
+              alt={movie.title}
+              width={300}
+              height={300}
+            />
+            <Button
+              type="button"
+              aria-label={showOverview ? "Masquer le résumé" : "Afficher le résumé"}
+              onClick={() => setShowOverview((p) => !p)}
+              size="icon"
+              className="absolute top-1/2 right-2"
+            >
+              <AlignRight />
+            </Button>
+            {!showOverview ? (
+              <>
+                <h1 className="text-xl font-bold break-words line-clamp-2 max-w-[300px]">
+                  {movie.title}
+                </h1>
+                <p>Note : {movie.vote_average}</p>
+                <p>Sortie : {movie.release_date}</p>
+              </>
+            ) : (
+              <p className="word-break max-w-[300px]">{movie.overview}</p>
+            )}
+          </div>
+        </SwipeCard>
+      ))}
     </section>
   );
 }

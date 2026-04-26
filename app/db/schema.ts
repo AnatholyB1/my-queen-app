@@ -1,14 +1,20 @@
-import { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { notification, movie, last } from "@/drizzle/schema";
+// Re-export typed shapes from the canonical Drizzle schema so that
+// existing imports keep working.
+export type {
+  User,
+  NewUser,
+  Movie as MovieRow,
+  NewMovie,
+  MovieSwipe,
+  NewMovieSwipe,
+  Last as LastRow,
+  NewLast,
+  Notification as NotificationType,
+  NewNotification as NewNotificationType,
+} from "@/drizzle/schema";
 
-// Define the types for the Notification table
-export type NotificationType = InferSelectModel<typeof notification>;
-export type NewNotificationType = InferInsertModel<typeof notification>;
+import type { NewMovie, NewMovieSwipe } from "@/drizzle/schema";
 
-// Define the types for the Movie table
-export type MovieType = InferSelectModel<typeof movie>;
-export type NewMovieType = InferInsertModel<typeof movie>;
-
-// Define the types for the Last table
-export type LastType = InferSelectModel<typeof last>;
-export type NewLastType = InferInsertModel<typeof last>;
+// Legacy aliases used across the app
+export type NewMovieType = NewMovie & { choice?: boolean };
+export type NewSwipe = NewMovieSwipe;

@@ -15,6 +15,13 @@
       "when": 1740587725015,
       "tag": "0001_great_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1745676000000,
+      "tag": "0002_refonte_users_swipes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,42 +1,51 @@
-// Import the functions you need from the SDKs you need
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getMessaging, getToken, isSupported } from "firebase/messaging";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+"use client";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getMessaging, getToken, isSupported, type Messaging } from "firebase/messaging";
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBndqCOaUxmLkz2PsBk0OBs4SMYpqwG4lM",
-  authDomain: "queen-app-417ef.firebaseapp.com",
-  projectId: "queen-app-417ef",
-  storageBucket: "queen-app-417ef.firebasestorage.app",
-  messagingSenderId: "766219822611",
-  appId: "1:766219822611:web:07dec786e903241fd541e6",
-  measurementId: "G-XS6WZ4RCV0",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let _app: FirebaseApp | null = null;
+function getOrInitApp(): FirebaseApp {
+  if (_app) return _app;
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    throw new Error(
+      "Firebase client config missing — set NEXT_PUBLIC_FIREBASE_* env vars",
+    );
+  }
+  _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  return _app;
+}
 
-const messaging = async () => {
+export const messaging = async (): Promise<Messaging | null> => {
+  if (typeof window === "undefined") return null;
   const supported = await isSupported();
-  return supported ? getMessaging(app) : null;
+  if (!supported) return null;
+  return getMessaging(getOrInitApp());
 };
 
-export const fetchToken = async () => {
-  try {
-    const fcmMessaging = await messaging();
-    if (fcmMessaging) {
-      const token = await getToken(fcmMessaging, {
-        vapidKey: process.env.FIREBASE_PUBLIC_KEY,
-      });
-      return token;
-    }
+export const fetchToken = async (): Promise<string | null> => {
+  const fcm = await messaging();
+  if (!fcm) return null;
+  const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+  if (!vapidKey) {
+    console.warn("NEXT_PUBLIC_FIREBASE_VAPID_KEY not set; skipping token fetch");
     return null;
+  }
+  try {
+    return await getToken(fcm, { vapidKey });
   } catch (err) {
-    console.error("An error occurred while fetching the token:", err);
+    console.warn("Failed to fetch FCM token", (err as Error).message);
     return null;
   }
 };
 
-export { app, messaging };
+export const app = typeof window !== "undefined" ? getOrInitApp() : null;

@@ -1,3 +1,4 @@
+"use client";
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -8,12 +9,11 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
-import { SendNotification } from "@/backEnd/firebaseNotification";
+import { sendNotification } from "@/backEnd/firebaseNotification";
 import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { ButtonData } from "@/types";
@@ -28,10 +28,8 @@ const buttonChoiceVariants = cva(
         lg: "h-20",
       },
     },
-    defaultVariants: {
-      size: "default",
-    },
-  }
+    defaultVariants: { size: "default" },
+  },
 );
 
 export interface ButtonChoiceProps
@@ -42,82 +40,75 @@ export interface ButtonChoiceProps
 }
 
 const ButtonChoice = React.forwardRef<HTMLDivElement, ButtonChoiceProps>(
-  ({ className, buttonData, asChild = false, ...props }, ref) => {
+  ({ className, buttonData, asChild = false, size, ...props }, ref) => {
     const Comp = asChild ? Slot : "div";
+    const { status } = useSession();
+    const isAuthed = status === "authenticated";
 
-    const { data: session } = useSession();
-    const email = session?.user?.email;
-
-    const { mutate: server_SendNotification, isPending } = useMutation({
-      mutationFn: SendNotification,
-      onSuccess: (success) => {
-        if (success) {
-          toast.success("Notification sent");
-        } else {
-          toast.error("Notification failed");
-        }
+    const { mutate: send, isPending } = useMutation({
+      mutationFn: sendNotification,
+      onSuccess: (res) => {
+        if (res.success) toast.success("Notification envoyée");
+        else toast.error(res.error.message ?? "Échec de l'envoi");
       },
-      onError: () => {
-        toast.error("Notification failed");
-      },
+      onError: () => toast.error("Échec de l'envoi"),
     });
 
-    if (!email) {
+    if (status === "loading") {
       return (
-        <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
+        <div
+          role="status"
+          aria-label="Chargement"
+          className="w-full h-screen flex items-center justify-center"
+        >
+          <LoaderCircle className="animate-spin" />
+        </div>
       );
     }
 
-    const getBody = (data: ButtonData) => {
-      return {
-        user: email,
-        title: data.title,
-        message: data.message,
-        link: data.link,
-      };
-    };
-
-    const getText = (data: ButtonData) => {
-      return data.text;
-    };
-
-    const Content: React.FC<ButtonData> = (data) => {
-      if (isPending) {
-        return <LoaderCircle className="animate-spin !w-full !h-full p-4" />;
-      } else {
-        return <>{getText(data)}</>;
-      }
-    };
+    if (!isAuthed) return null;
 
     return (
       <Comp
-        className={cn(buttonChoiceVariants({ className }))}
+        className={cn(buttonChoiceVariants({ size, className }))}
         ref={ref}
         {...props}
       >
         <Carousel className="flex items-center justify-center w-full">
-          <CarouselContent className="">
-            {Array.from(buttonData).map((_, index) => (
+          <CarouselContent>
+            {buttonData.map((data) => (
               <CarouselItem
                 className="flex items-center justify-center"
-                key={index}
+                key={data.short}
               >
                 <Button
                   type="button"
-                  className="rounded-full m-9 w-32 h-32 "
-                  onClick={() => server_SendNotification(getBody(_))}
+                  className="rounded-full m-9 w-32 h-32"
+                  aria-label={data.text}
+                  disabled={isPending}
+                  onClick={() =>
+                    send({
+                      title: data.title,
+                      message: data.message,
+                      link: data.link,
+                    })
+                  }
                 >
-                  <Content {..._} />
+                  {isPending ? (
+                    <LoaderCircle className="animate-spin !w-full !h-full p-4" />
+                  ) : (
+                    <span>{data.text}</span>
+                  )}
                 </Button>
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="left-0" />
-          <CarouselNext className="right-0" />
+          <CarouselPrevious className="left-0" aria-label="Précédent" />
+          <CarouselNext className="right-0" aria-label="Suivant" />
         </Carousel>
       </Comp>
     );
-  }
+  },
 );
 
 ButtonChoice.displayName = "ButtonChoice";

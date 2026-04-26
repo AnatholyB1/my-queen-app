@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
+import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { buttonChoiceData } from "@/data/buttonChoiceData";
 import { useFcmToken } from "@/hooks/useFcmToken";
@@ -20,62 +20,59 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { distinctSenders, senderLabel } from "./chartUtils";
 
-const chartConfig = {
-  Anatholy: {
-    label: "Anatholy",
-    color: "hsl(var(--chart-1))",
-  },
-  Axelle: {
-    label: "Axelle",
-    color: "hsl(var(--chart-2))",
-  },
-} satisfies ChartConfig;
-
-export default function Component() {
+export default function StackedChart() {
   const { allNotifications } = useFcmToken();
 
-  if (typeof allNotifications == "undefined") {
-    return (
-      <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
-    );
-  }
+  const senders = React.useMemo(
+    () => distinctSenders(allNotifications),
+    [allNotifications],
+  );
 
-  const titleToShortMap = buttonChoiceData.reduce((acc, item) => {
-    acc[item.title] = item.short;
-    return acc;
-  }, {} as Record<string, string>);
+  const chartConfig = React.useMemo(() => {
+    const cfg: ChartConfig = {};
+    senders.forEach((s, i) => {
+      cfg[s.name] = { label: s.name, color: `hsl(var(--chart-${(i % 5) + 1}))` };
+    });
+    return cfg;
+  }, [senders]);
 
-  const transformedData = allNotifications.reduce((acc, item) => {
-    const type = titleToShortMap[item.title];
-    if (!type) return acc; // Skip if the title does not match
+  const titleToShort = React.useMemo(
+    () =>
+      buttonChoiceData.reduce<Record<string, string>>((acc, item) => {
+        acc[item.title] = item.short;
+        return acc;
+      }, {}),
+    [],
+  );
 
-    if (!acc[type]) {
-      acc[type] = { type, Anatholy: 0, Axelle: 0 };
+  const data = React.useMemo(() => {
+    const buckets: Record<string, Record<string, string | number>> = {};
+    for (const n of allNotifications) {
+      const type = titleToShort[n.title];
+      if (!type) continue;
+      const label = senderLabel(n);
+      if (!buckets[type]) {
+        buckets[type] = { type };
+        for (const s of senders) buckets[type][s.name] = 0;
+      }
+      buckets[type][label] = ((buckets[type][label] as number) ?? 0) + 1;
     }
-
-    if (item.user === "anatholyb@gmail.com") {
-      acc[type].Anatholy += 1;
-    } else if (item.user === "axelle.charrier.14@gmail.com") {
-      acc[type].Axelle += 1;
-    }
-
-    return acc;
-  }, {} as Record<string, { type: string; Anatholy: number; Axelle: number }>);
-
-  const transformedDataArray = Object.values(transformedData);
+    return Object.values(buckets);
+  }, [allNotifications, senders, titleToShort]);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Bar Chart</CardTitle>
+        <CardTitle>Répartition par type</CardTitle>
         <CardDescription>
-          Showing all types of notification between the Queen and the King
+          Tous les types de notifications, par expéditeur
         </CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer className="overflow-x-auto" config={chartConfig}>
-          <BarChart accessibilityLayer data={transformedDataArray}>
+          <BarChart accessibilityLayer data={data}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="type"
@@ -85,18 +82,21 @@ export default function Component() {
             />
             <ChartTooltip content={<ChartTooltipContent hideLabel />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar
-              dataKey="Anatholy"
-              stackId="a"
-              fill="var(--color-Anatholy)"
-              radius={[0, 0, 4, 4]}
-            />
-            <Bar
-              dataKey="Axelle"
-              stackId="a"
-              fill="var(--color-Axelle)"
-              radius={[4, 4, 0, 0]}
-            />
+            {senders.map((s, i) => (
+              <Bar
+                key={s.name}
+                dataKey={s.name}
+                stackId="a"
+                fill={`var(--color-${s.name})`}
+                radius={
+                  i === senders.length - 1
+                    ? [4, 4, 0, 0]
+                    : i === 0
+                    ? [0, 0, 4, 4]
+                    : [0, 0, 0, 0]
+                }
+              />
+            ))}
           </BarChart>
         </ChartContainer>
       </CardContent>

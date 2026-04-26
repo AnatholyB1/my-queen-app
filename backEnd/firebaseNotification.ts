@@ -1,103 +1,119 @@
 "use server";
+
 import admin from "firebase-admin";
-import { Message } from "firebase-admin/messaging";
-import { CreateNotification } from "./notification";
+import type { Message } from "firebase-admin/messaging";
+import { createNotification } from "./notification";
+import { getOrCreateCurrentUser } from "./users";
+import { action } from "@/lib/result";
+import { logger } from "@/lib/logger";
+import {
+  fcmTokenSchema,
+  notificationSchema,
+  parseInput,
+  type NotificationInput,
+} from "@/lib/validation";
 
-const serviceAccountBase = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (!serviceAccountBase) {
-  throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
-}
+const FCM_TOPIC = process.env.FIREBASE_TOPIC ?? "app";
 
-const fireBaseId = process.env.FIREBASE_ID;
-if (!fireBaseId) {
-  throw new Error("Missing FIREBASE_ID environment variable");
-}
-// Ensure the private key is correctly formatted
-const formattedPrivateKey = serviceAccountBase.replace(/\\n/g, "\n");
-
-const serviceAccount = {
-  type: "service_account",
-  project_id: "queen-app-417ef",
-  private_key_id: fireBaseId,
-  private_key: formattedPrivateKey,
-  client_email:
-    "firebase-adminsdk-fbsvc@queen-app-417ef.iam.gserviceaccount.com",
-  client_id: "118160915009649317984",
-  auth_uri: "https://accounts.google.com/o/oauth2/auth",
-  token_uri: "https://oauth2.googleapis.com/token",
-  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-  client_x509_cert_url:
-    "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40queen-app-417ef.iam.gserviceaccount.com",
-  universe_domain: "googleapis.com",
-};
-
-try {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-    });
+function loadServiceAccount(): admin.ServiceAccount {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.private_key === "string") {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+      }
+      return parsed as unknown as admin.ServiceAccount;
+    } catch (err) {
+      logger.error(
+        { err: (err as Error).message },
+        "FIREBASE_SERVICE_ACCOUNT is not valid JSON",
+      );
+      throw new Error("Invalid FIREBASE_SERVICE_ACCOUNT (must be JSON)", {
+        cause: err,
+      });
+    }
   }
-} catch (error) {
-  console.log("Firebase admin initialization error", (error as Error).message);
-}
 
-export const SendNotification = async ({
-  user,
-  title,
-  message,
-  link,
-}: {
-  user: string;
-  title: string;
-  message: string;
-  link: string;
-}) => {
-  const payload: Message = {
-    data: {
-      user,
-    },
-    notification: {
-      title,
-      body: message,
-    },
-    webpush: {
-      fcmOptions: {
-        link,
-      },
-      notification: {
-        body: message,
-        requireInteraction: true,
-        badge: "https://my-queen-app.vercel.app/icon-48x48.ico",
-      },
-    },
-    topic: "app",
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      "Missing Firebase admin credentials. Provide FIREBASE_SERVICE_ACCOUNT or FIREBASE_ADMIN_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY",
+    );
+  }
+  return {
+    projectId,
+    clientEmail,
+    privateKey: privateKey.replace(/\\n/g, "\n"),
   };
-  try {
-    await admin.messaging().send(payload);
-    await CreateNotification({ user, title, message, link });
+}
 
-    return { success: true, message: "Notification sent!" };
-  } catch (error) {
-    return { success: false, error: (error as Error).message };
+function getFirebaseApp(): admin.app.App {
+  if (admin.apps.length > 0) {
+    return admin.app();
   }
-};
+  return admin.initializeApp({
+    credential: admin.credential.cert(loadServiceAccount()),
+  });
+}
 
-export const subscribeToTopic = async (token: string) => {
-  try {
-    await admin.messaging().subscribeToTopic(token, "app");
+const APP_BASE_URL = process.env.APP_BASE_URL ?? "";
 
-    return { success: true, message: "Subscribed to topic!" };
-  } catch (error) {
-    return { success: false, error: (error as Error).message };
-  }
-};
+export const sendNotification = async (input: NotificationInput) =>
+  action("sendNotification", async () => {
+    const data = parseInput(notificationSchema, input);
+    const me = await getOrCreateCurrentUser();
 
-export const unsubscribeFromTopic = async (token: string) => {
-  try {
-    await admin.messaging().unsubscribeFromTopic(token, "app");
+    // Persist first so we have an id even if FCM is down.
+    const created = await createNotification(data);
+    if (!created.success) throw new Error("Failed to persist notification");
 
-    return { success: true, message: "Unsubscribed from topic!" };
-  } catch (error) {
-    return { success: false, error: (error as Error).message };
-  }
-};
+    const link = APP_BASE_URL ? `${APP_BASE_URL}${data.link}` : data.link;
+    const payload: Message = {
+      data: { senderId: String(me.id) },
+      notification: { title: data.title, body: data.message },
+      webpush: {
+        fcmOptions: { link },
+        notification: {
+          body: data.message,
+          requireInteraction: true,
+        },
+      },
+      topic: FCM_TOPIC,
+    };
+
+    try {
+      const app = getFirebaseApp();
+      await admin.messaging(app).send(payload);
+    } catch (err) {
+      logger.error(
+        { err: (err as Error).message, action: "sendNotification" },
+        "Firebase send failed",
+      );
+      // Notification is persisted; the in-app UI still surfaces it.
+    }
+    return { id: created.data.id };
+  });
+
+export const subscribeToTopic = async (token: string) =>
+  action("subscribeToTopic", async () => {
+    const t = parseInput(fcmTokenSchema, token);
+    await getOrCreateCurrentUser();
+    const app = getFirebaseApp();
+    await admin.messaging(app).subscribeToTopic(t, FCM_TOPIC);
+    return { topic: FCM_TOPIC };
+  });
+
+export const unsubscribeFromTopic = async (token: string) =>
+  action("unsubscribeFromTopic", async () => {
+    const t = parseInput(fcmTokenSchema, token);
+    await getOrCreateCurrentUser();
+    const app = getFirebaseApp();
+    await admin.messaging(app).unsubscribeFromTopic(t, FCM_TOPIC);
+    return { topic: FCM_TOPIC };
+  });
+
+// Legacy aliases
+export const SendNotification = sendNotification;
