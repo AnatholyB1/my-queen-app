@@ -1,37 +1,121 @@
-import { pgTable, integer, varchar, timestamp, unique, boolean, foreignKey, text } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
+import {
+  pgTable,
+  integer,
+  varchar,
+  timestamp,
+  boolean,
+  text,
+  uniqueIndex,
+  index,
+  serial,
+} from "drizzle-orm/pg-core";
 
+/**
+ * Users — populated from the OIDC provider on first login.
+ * `external_id` is the provider subject (Auth0 `sub`).
+ */
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    externalId: varchar("external_id", { length: 255 }).notNull(),
+    email: varchar("email", { length: 320 }).notNull(),
+    name: varchar("name", { length: 255 }),
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("users_external_id_idx").on(t.externalId),
+    uniqueIndex("users_email_idx").on(t.email),
+  ],
+);
 
+/**
+ * Catalog of movies seen by the app (one row per TMDB movie).
+ */
+export const movie = pgTable(
+  "movie",
+  {
+    id: serial("id").primaryKey(),
+    movieId: integer("movie_id").notNull(),
+    page: integer("page").notNull(),
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("movie_movie_id_idx").on(t.movieId)],
+);
 
-export const notification = pgTable("notification", {
-	id: integer().primaryKey().generatedAlwaysAsIdentity({ name: "notification_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 2147483647, cache: 1 }),
-	user: varchar({ length: 255 }).notNull(),
-	title: varchar({ length: 255 }).notNull(),
-	message: varchar({ length: 255 }).notNull(),
-	link: varchar({ length: 255 }).notNull(),
-	read: integer().default(0).notNull(),
-	timestamp: timestamp({ mode: 'string' }).defaultNow().notNull(),
-});
+/**
+ * Per-user swipe choice. Replaces the old hardcoded `anatholy`/`axelle`
+ * boolean columns. Unique on (user_id, movie_id).
+ */
+export const movieSwipe = pgTable(
+  "movie_swipe",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    movieId: integer("movie_id")
+      .notNull()
+      .references(() => movie.id, { onDelete: "cascade" }),
+    choice: boolean("choice").notNull(),
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("movie_swipe_user_movie_idx").on(t.userId, t.movieId),
+    index("movie_swipe_movie_idx").on(t.movieId),
+  ],
+);
 
-export const movie = pgTable("movie", {
-	id: integer().primaryKey().generatedAlwaysAsIdentity({ name: "movie_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 2147483647, cache: 1 }),
-	anatholy: boolean().default(false).notNull(),
-	axelle: boolean().default(false).notNull(),
-	movieId: integer("movie_id").notNull(),
-	page: integer().notNull(),
-}, (table) => [
-	unique("movie_movie_id_key").on(table.movieId),
-]);
+/**
+ * Last position for resuming the swipe deck.
+ */
+export const last = pgTable(
+  "last",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    movieId: integer("movie_id")
+      .notNull()
+      .references(() => movie.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("last_user_idx").on(t.userId)],
+);
 
-export const last = pgTable("last", {
-	user: text().notNull(),
-	id: integer().primaryKey().generatedAlwaysAsIdentity({ name: "last_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 2147483647, cache: 1 }),
-	movie: integer().notNull(),
-}, (table) => [
-	foreignKey({
-			columns: [table.movie],
-			foreignColumns: [movie.id],
-			name: "constraint_1"
-		}),
-	unique("last_user_key").on(table.user),
-]);
+/**
+ * Notifications — sent FROM a user (recipient is everyone else subscribed).
+ */
+export const notification = pgTable(
+  "notification",
+  {
+    id: serial("id").primaryKey(),
+    senderId: integer("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).notNull(),
+    message: varchar("message", { length: 1024 }).notNull(),
+    link: varchar("link", { length: 1024 }).notNull(),
+    read: boolean("read").default(false).notNull(),
+    timestamp: timestamp("timestamp", { mode: "string" }).defaultNow().notNull(),
+  },
+  (t) => [index("notification_sender_idx").on(t.senderId)],
+);
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Movie = typeof movie.$inferSelect;
+export type NewMovie = typeof movie.$inferInsert;
+export type MovieSwipe = typeof movieSwipe.$inferSelect;
+export type NewMovieSwipe = typeof movieSwipe.$inferInsert;
+export type Last = typeof last.$inferSelect;
+export type NewLast = typeof last.$inferInsert;
+export type Notification = typeof notification.$inferSelect;
+export type NewNotification = typeof notification.$inferInsert;
+
+// Backwards-compat aliases for legacy file paths
+export { notification as notifications };
+
+// Legacy `text` column type unused; keep the import alive when needed.
+export const _unusedText = text;

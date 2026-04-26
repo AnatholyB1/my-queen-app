@@ -9,17 +9,25 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      signIn();
+      signIn("auth0", { callbackUrl: window.location.href });
     }
   }, [status]);
 
   if (status === "loading") {
     return (
-      <LoaderCircle className="w-full h-screen p-16 flex items-center justify-center animate-spin" />
+      <div
+        role="status"
+        aria-label="Chargement de la session"
+        className="w-full h-screen flex items-center justify-center"
+      >
+        <LoaderCircle className="animate-spin" />
+      </div>
     );
   }
 
-  return <>{session ? children : null}</>;
+  if (status !== "authenticated" || !session) return null;
+
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

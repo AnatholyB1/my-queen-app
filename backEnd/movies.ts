@@ -1,147 +1,178 @@
 "use server";
+
 import { db } from "@/app/db";
-import { NewMovieType } from "@/app/db/schema";
-import { movie, last } from "@/drizzle/schema";
-import { and, eq } from "drizzle-orm";
+import { movie, movieSwipe, last } from "@/drizzle/schema";
+import { and, eq, sql } from "drizzle-orm";
+import { getOrCreateCurrentUser } from "./users";
+import { action } from "@/lib/result";
+import {
+  newMovieSchema,
+  parseInput,
+  swipeChoiceSchema,
+  type NewMovieInput,
+  type SwipeChoiceInput,
+} from "@/lib/validation";
 
-export async function getMatchedMovies() {
-  try {
-    const movies = await db
-      .select()
-      .from(movie)
-      .where(and(eq(movie.anatholy, true), eq(movie.axelle, true)));
-    return { success: true, movies };
-  } catch (error) {
-    return { success: false, error };
-  }
+export type MatchedMovie = {
+  id: number;
+  movieId: number;
+  page: number;
+};
+
+export type LastMovieResume = {
+  id: number;
+  movieId: number;
+  page: number;
+};
+
+/**
+ * Movies that BOTH the current user AND any other user have liked.
+ * Replaces the old anatholy/axelle hardcoded join.
+ */
+export const getMatchedMovies = async () =>
+  action("getMatchedMovies", async () => {
+    const me = await getOrCreateCurrentUser();
+    const myLikes = db
+      .select({ movieId: movieSwipe.movieId })
+      .from(movieSwipe)
+      .where(and(eq(movieSwipe.userId, me.id), eq(movieSwipe.choice, true)))
+      .as("my_likes");
+
+    const matched = await db
+      .selectDistinct({
+        id: movie.id,
+        movieId: movie.movieId,
+        page: movie.page,
+      })
+      .from(movieSwipe)
+      .innerJoin(myLikes, eq(myLikes.movieId, movieSwipe.movieId))
+      .innerJoin(movie, eq(movie.id, movieSwipe.movieId))
+      .where(and(eq(movieSwipe.choice, true), sql`${movieSwipe.userId} <> ${me.id}`));
+
+    return matched satisfies MatchedMovie[];
+  });
+
+export const checkMatch = async (tmdbMovieId: number) =>
+  action("checkMatch", async () => {
+    const id = parseInput(newMovieSchema.shape.movieId, tmdbMovieId);
+    const me = await getOrCreateCurrentUser();
+    const rows = await db
+      .select({
+        userId: movieSwipe.userId,
+        choice: movieSwipe.choice,
+      })
+      .from(movieSwipe)
+      .innerJoin(movie, eq(movie.id, movieSwipe.movieId))
+      .where(eq(movie.movieId, id));
+
+    const meLikes = rows.some((r) => r.userId === me.id && r.choice);
+    const otherLikes = rows.some((r) => r.userId !== me.id && r.choice);
+    return { matched: meLikes && otherLikes };
+  });
+
+async function upsertMovieRow(input: NewMovieInput) {
+  const inserted = await db
+    .insert(movie)
+    .values({ movieId: input.movieId, page: input.page })
+    .onConflictDoUpdate({
+      target: movie.movieId,
+      set: { page: input.page },
+    })
+    .returning({ id: movie.id });
+  return inserted[0]!.id;
 }
 
-export async function checkMatch(id: number) {
-  try {
-    const matched = await db
-      .select()
-      .from(movie)
-      .where(
-        and(
-          eq(movie.movieId, id),
-          eq(movie.anatholy, true),
-          eq(movie.axelle, true)
-        )
-      );
-    if (matched.length === 0) {
-      return { success: true, matched: false };
-    }
-    return { success: true, matched: true };
-  } catch (error) {
-    return { success: false, error };
-  }
-}
+/**
+ * Record a swipe for the authenticated user and report whether the
+ * choice produces a match (both users liked the same movie).
+ */
+export const matchMovie = async (input: SwipeChoiceInput) =>
+  action("matchMovie", async () => {
+    const { movieData, choice } = parseInput(swipeChoiceSchema, input);
+    const me = await getOrCreateCurrentUser();
 
-export async function matchMovie({
-  data,
-  user,
-}: {
-  data: NewMovieType;
-  user: string;
-}) {
-  try {
-    //check if movie is already created
-    const matched = await db
-      .select()
-      .from(movie)
-      .where(eq(movie.movieId, data.movieId));
-
-    if (matched.length === 0) {
-      await db.insert(movie).values({ ...data, [user]: true });
-      return { success: true, matched: false };
-    }
-
-    const checkMatchedOtherUser = user === "anatholy" ? "axelle" : "anatholy";
+    const movieRowId = await upsertMovieRow(movieData);
 
     await db
-      .update(movie)
-      .set({ [user]: true })
-      .where(eq(movie.movieId, data.movieId));
+      .insert(movieSwipe)
+      .values({ userId: me.id, movieId: movieRowId, choice })
+      .onConflictDoUpdate({
+        target: [movieSwipe.userId, movieSwipe.movieId],
+        set: { choice },
+      });
 
-    if (matched[0][checkMatchedOtherUser]) {
-      return { success: true, matched: true };
-    } else {
-      return { success: true, matched: false };
-    }
-  } catch (error) {
-    return { success: false, error };
-  }
-}
+    if (!choice) return { matched: false };
 
-export async function getLastMoviePage(user: string) {
-  try {
-    const lastData = await db
-      .select()
+    const others = await db
+      .select({ userId: movieSwipe.userId })
+      .from(movieSwipe)
+      .where(
+        and(
+          eq(movieSwipe.movieId, movieRowId),
+          eq(movieSwipe.choice, true),
+          sql`${movieSwipe.userId} <> ${me.id}`,
+        ),
+      )
+      .limit(1);
+
+    return { matched: others.length > 0 };
+  });
+
+export const getLastMoviePage = async () =>
+  action("getLastMoviePage", async () => {
+    const me = await getOrCreateCurrentUser();
+    const rows = await db
+      .select({
+        id: movie.id,
+        movieId: movie.movieId,
+        page: movie.page,
+      })
       .from(last)
-      .rightJoin(movie, eq(last.movie, movie.id))
-      .where(eq(last.user, user));
-    return { success: true, movie: lastData[0].movie };
-  } catch (error) {
-    return { success: false, error };
-  }
-}
+      .innerJoin(movie, eq(movie.id, last.movieId))
+      .where(eq(last.userId, me.id))
+      .limit(1);
+    return { movie: (rows[0] ?? null) as LastMovieResume | null };
+  });
 
-export async function updateLastMovie({
-  movieData,
-  user,
-  choice,
-}: {
-  movieData: NewMovieType;
-  user: string;
-  choice: boolean;
-}) {
-  try {
-    const lastData = await db
-      .select()
-      .from(last)
-      .rightJoin(movie, eq(last.id, movie.id))
-      .where(eq(last.user, user));
+/**
+ * Update both the swipe choice AND the resume position in one atomic step.
+ */
+export const updateLastMovie = async (input: SwipeChoiceInput) =>
+  action("updateLastMovie", async () => {
+    const { movieData, choice } = parseInput(swipeChoiceSchema, input);
+    const me = await getOrCreateCurrentUser();
 
-    const currentMovie = await db
-      .select()
-      .from(movie)
-      .where(eq(movie.movieId, movieData.movieId));
+    const movieRowId = await upsertMovieRow(movieData);
 
-    if (lastData.length === 0) {
-      if (currentMovie.length === 0) {
-        {
-          await db.insert(movie).values({ ...movieData, [user]: choice });
-          const idResult = await db
-            .select({ id: movie.id })
-            .from(movie)
-            .where(eq(movie.movieId, movieData.movieId));
-          const id = idResult[0].id;
-          await db.insert(last).values({ user, movie: id });
-        }
-      } else {
-        await db
-          .update(last)
-          .set({ movie: currentMovie[0].id })
-          .where(eq(last.user, user));
-      }
-    } else {
-      if (currentMovie.length === 0) {
-        await db.insert(movie).values({ ...movieData, [user]: choice });
-      } else {
-        await db
-          .update(last)
-          .set({ movie: currentMovie[0].id })
-          .where(eq(last.user, user));
-      }
-    }
+    await db
+      .insert(movieSwipe)
+      .values({ userId: me.id, movieId: movieRowId, choice })
+      .onConflictDoUpdate({
+        target: [movieSwipe.userId, movieSwipe.movieId],
+        set: { choice },
+      });
 
-    if (choice) {
-      const result = await matchMovie({ data: movieData, user });
-      return { success: true, matched: result.matched };
-    }
+    await db
+      .insert(last)
+      .values({ userId: me.id, movieId: movieRowId })
+      .onConflictDoUpdate({
+        target: last.userId,
+        set: { movieId: movieRowId, updatedAt: sql`now()` },
+      });
 
-    return { success: true };
-  } catch (error) {
-    return { success: false, error };
-  }
-}
+    if (!choice) return { matched: false };
+
+    const others = await db
+      .select({ userId: movieSwipe.userId })
+      .from(movieSwipe)
+      .where(
+        and(
+          eq(movieSwipe.movieId, movieRowId),
+          eq(movieSwipe.choice, true),
+          sql`${movieSwipe.userId} <> ${me.id}`,
+        ),
+      )
+      .limit(1);
+
+    return { matched: others.length > 0 };
+  });
