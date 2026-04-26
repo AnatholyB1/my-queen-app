@@ -55,7 +55,8 @@ describe("ButtonChoice", () => {
 
     const btn = await screen.findByRole("button", { name: /hi/i });
     await userEvent.click(btn);
-    expect(sendNotificationMock).toHaveBeenCalledWith({
+    // React Query passes a context object as second arg; assert only on the input.
+    expect(sendNotificationMock.mock.calls[0]?.[0]).toEqual({
       title: "Hi",
       message: "Hello",
       link: "/",
